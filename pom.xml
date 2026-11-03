@@ -8,6 +8,7 @@
         <module>autumn-registry-consul</module>
         <module>autumn-spring-boot</module>
         <module>autumn-sample</module>
+        <module>autumn-spring-cloud-examples</module>
     </modules>
 
     <parent>

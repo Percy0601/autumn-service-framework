@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.micro-app</groupId>
+        <artifactId>autumn-spring-cloud-examples</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>autumn-spring-cloud-examples-api</artifactId>
+    <packaging>jar</packaging>
+
+    <name>autumn-spring-cloud-examples-api</name>
+    <description>provider / consumer 共享的 HTTP 服务契约（HttpExchange 接口 + DTO）</description>
+
+    <dependencies>
+        <!-- 提供 @HttpExchange / @GetExchange / @PostExchange 注解与 Reactor Mono -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webflux</artifactId>
+        </dependency>
+    </dependencies>
+</project>
