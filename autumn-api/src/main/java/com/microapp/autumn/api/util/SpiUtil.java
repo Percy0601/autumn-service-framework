@@ -1,6 +1,7 @@
 package com.microapp.autumn.api.util;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.microapp.autumn.api.Discovery;
 import com.microapp.autumn.api.Registry;
 
+import lombok.extern.slf4j.Slf4j;
+
 
 /**
  * SPI util
@@ -18,12 +21,11 @@ import com.microapp.autumn.api.Registry;
  * @author: baoxin.zhao
  * @date: 2024/10/28
  */
+@Slf4j
 public class SpiUtil {
+    private static final Object EMPTY_MARKER = new Object();
     private static volatile Map<Class, Object> mapping = new ConcurrentHashMap<>();
     private static volatile Map<Class, List<Object>> mappings = new ConcurrentHashMap<>();
-
-//    private static volatile Discovery discovery;
-//    private static volatile Registry registry;
 
     private SpiUtil() {
 
@@ -31,12 +33,14 @@ public class SpiUtil {
 
     public static <S> S load(Class<S> service) {
         if(mapping.containsKey(service)) {
-            return (S)mapping.get(service);
+            Object value = mapping.get(service);
+            return EMPTY_MARKER == value ? null : (S)value;
         }
         ServiceLoader<S> load = ServiceLoader.load(service);
         Iterator<S> iterator = load.iterator();
         if(!iterator.hasNext()) {
-            mapping.put(service, null);
+            mapping.put(service, EMPTY_MARKER);
+            log.warn("autumn spi implementation not found, service:{}", service.getName());
             return null;
         }
         S s = iterator.next();
@@ -51,8 +55,8 @@ public class SpiUtil {
         ServiceLoader<S> load = ServiceLoader.load(service);
         Iterator<S> iterator = load.iterator();
         if(!iterator.hasNext()) {
-            mappings.put(service, null);
-            return null;
+            mappings.put(service, Collections.emptyList());
+            return Collections.emptyList();
         }
         List<Object> result = new ArrayList<>();
         while(iterator.hasNext()) {
@@ -62,31 +66,4 @@ public class SpiUtil {
         mappings.put(service, result);
         return (List<S>) result;
     }
-//
-//    public static Discovery discovery(){
-//        if(null == discovery) {
-//            ServiceLoader<Discovery> load = ServiceLoader.load(Discovery.class);
-//            Iterator<Discovery> iterator = load.iterator();
-//            if(!iterator.hasNext()) {
-//                return null;
-//            }
-//            discovery = iterator.next();
-//            return discovery;
-//        }
-//
-//        return discovery;
-//    }
-//
-//    public static Registry registry(){
-//        if(null == registry) {
-//            ServiceLoader<Registry> load = ServiceLoader.load(Registry.class);
-//            Iterator<Registry> iterator = load.iterator();
-//            if(!iterator.hasNext()) {
-//                return null;
-//            }
-//            registry = iterator.next();
-//        }
-//
-//        return registry;
-//    }
 }

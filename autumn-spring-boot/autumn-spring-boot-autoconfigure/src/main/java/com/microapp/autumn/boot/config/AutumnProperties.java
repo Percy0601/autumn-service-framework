@@ -54,6 +54,11 @@ public class AutumnProperties {
      */
     private Provider provider = new Provider();
 
+    /**
+     * consul registry config
+     */
+    private Consul consul = new Consul();
+
     @Data
     public static class Provider {
         /**
@@ -88,5 +93,37 @@ public class AutumnProperties {
          * provider bind ip, default auto detect
          */
         private String ip;
+    }
+
+    @Data
+    public static class Consul {
+        /**
+         * whether register into consul, default true
+         */
+        private Boolean register = Boolean.TRUE;
+        /**
+         * whether discovery consul service, default true
+         */
+        private Boolean discovery = Boolean.TRUE;
+        /**
+         * consul instance id, default [application]:[ip]:[port]
+         */
+        private String instanceId;
+        /**
+         * consul health check interval, unit second, default 10
+         */
+        private Integer healthCheckInterval = 10;
+        /**
+         * consul server host, default 127.0.0.1
+         */
+        private String host = "127.0.0.1";
+        /**
+         * consul server port, default 8500
+         */
+        private Integer port = 8500;
+        /**
+         * consul namespace
+         */
+        private String namespace;
     }
 }

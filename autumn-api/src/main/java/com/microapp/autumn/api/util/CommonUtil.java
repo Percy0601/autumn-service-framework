@@ -42,6 +42,15 @@ public class CommonUtil {
 
     public static String getHostIpAddress() {
         NetworkInterface netInterface = getNetIf();
+        if(Objects.isNull(netInterface)) {
+            // fallback to localhost when no eligible network interface found
+            try {
+                return InetAddress.getLocalHost().getHostAddress();
+            } catch (Exception e) {
+                log.warn("get local host address exception:", e);
+                return null;
+            }
+        }
         Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
         while (addresses.hasMoreElements()) {
             InetAddress ip = addresses.nextElement();
@@ -55,6 +64,7 @@ public class CommonUtil {
     }
 
     public static NetworkInterface getNetIf() {
+        NetworkInterface fallback = null;
         try {
             Enumeration<NetworkInterface> allNetInterfaces = NetworkInterface.getNetworkInterfaces();
             while (allNetInterfaces.hasMoreElements()) {
@@ -62,31 +72,36 @@ public class CommonUtil {
                 if (netInterface.isLoopback() || netInterface.isVirtual() || !netInterface.isUp()) {
                     continue;
                 }
-
-                if (!netInterface.getDisplayName().contains("Intel")
-                        && !netInterface.getDisplayName().contains("Realtek")
-                        && !netInterface.getDisplayName().contains("Atheros")
-                        && !netInterface.getDisplayName().contains("Broadcom")) {
-                    continue;
-                }
                 Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
                 if(!addresses.hasMoreElements()) {
                     continue;
                 }
+                boolean hasIpv4 = false;
                 while (addresses.hasMoreElements()) {
                     InetAddress ip = addresses.nextElement();
-                    if (ip != null) {
-                        if (ip instanceof Inet4Address) {
-                            return netInterface;
-                        }
+                    if (ip instanceof Inet4Address) {
+                        hasIpv4 = true;
+                        break;
                     }
                 }
-                break;
+                if(!hasIpv4) {
+                    continue;
+                }
+                if (netInterface.getDisplayName().contains("Intel")
+                        || netInterface.getDisplayName().contains("Realtek")
+                        || netInterface.getDisplayName().contains("Atheros")
+                        || netInterface.getDisplayName().contains("Broadcom")) {
+                    return netInterface;
+                }
+                // remember first eligible interface as fallback(e.g. macOS en0 with no vendor keyword)
+                if(Objects.isNull(fallback)) {
+                    fallback = netInterface;
+                }
             }
         } catch (SocketException e) {
-            e.getMessage();
+            log.warn("get network interfaces exception:", e);
         }
-        return null;
+        return fallback;
     }
 
     /**

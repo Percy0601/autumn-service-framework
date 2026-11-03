@@ -49,14 +49,26 @@ public final class AutumnPool {
 
     public ReferenceConfig<? extends TServiceClient> getReferenceConfig(String name) {
         ConcurrentBag bag = mapping.get(name);
+        if(Objects.isNull(bag)) {
+            return null;
+        }
         ReferenceConfig<? extends TServiceClient> config = bag.getConfig();
         return config;
     }
 
     public ConcurrentBagEntry borrow(String service) {
         ConcurrentBag bag = mapping.get(service);
+        if(Objects.isNull(bag)) {
+            log.warn("autumn reference service not registered, service:{}", service);
+            return null;
+        }
         try {
-            ConcurrentBagEntry entry = bag.borrow(1000, TimeUnit.MILLISECONDS);
+            ReferenceConfig<? extends TServiceClient> config = bag.getConfig();
+            long poolTimeout = 1000L;
+            if(Objects.nonNull(config) && Objects.nonNull(config.getPoolTimeout())) {
+                poolTimeout = config.getPoolTimeout();
+            }
+            ConcurrentBagEntry entry = bag.borrow(poolTimeout, TimeUnit.MILLISECONDS);
             return entry;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
@@ -78,6 +90,10 @@ public final class AutumnPool {
 
     public void join(ConsumerConfig consumerConfig) {
         ConcurrentBag bag = mapping.get(consumerConfig.getName());
+        if(Objects.isNull(bag)) {
+            log.warn("autumn join consumer config fail, service not registered:{}", consumerConfig.getName());
+            return;
+        }
         bag.join(consumerConfig);
     }
 

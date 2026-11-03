@@ -27,7 +27,9 @@ import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.api.config.ServiceConfig;
 import com.microapp.autumn.api.enums.RegistryTypeEnum;
 import com.microapp.autumn.api.extension.AttachableProcessor;
+import com.microapp.autumn.api.extension.AutumnServiceAssembler;
 import com.microapp.autumn.api.util.AutumnException;
+import com.microapp.autumn.api.util.SpiUtil;
 import com.microapp.autumn.boot.config.AutumnProperties;
 import com.microapp.autumn.core.AutumnBootstrap;
 import com.microapp.autumn.core.pool.AutumnPool;
@@ -84,6 +86,20 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                 props.setProperty("provider.ip", provider.getIp());
             }
         }
+        AutumnProperties.Consul consul = properties.getConsul();
+        if (Objects.nonNull(consul)) {
+            props.setProperty("consul.register", String.valueOf(consul.getRegister()));
+            props.setProperty("consul.discovery", String.valueOf(consul.getDiscovery()));
+            props.setProperty("consul.health-check-interval", String.valueOf(consul.getHealthCheckInterval()));
+            props.setProperty("consul.host", String.valueOf(consul.getHost()));
+            props.setProperty("consul.port", String.valueOf(consul.getPort()));
+            if (Objects.nonNull(consul.getInstanceId())) {
+                props.setProperty("consul.instance-id", consul.getInstanceId());
+            }
+            if (Objects.nonNull(consul.getNamespace())) {
+                props.setProperty("consul.namespace", consul.getNamespace());
+            }
+        }
         ApplicationConfig.getInstance().init(props);
         ProviderConfig.getInstance().init(props);
         log.info("autumn config initialized: {}", props);
@@ -102,10 +118,31 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
     private static final String THRIFT_IFACE_SUFFIX = "$Iface";
 
     /**
-     * export spring bean annotated with @Export as thrift service
+     * export spring bean annotated with @Export as thrift service.
+     * <p>
+     * priority: compile-time generated AutumnServiceAssembler (zero reflection, native image friendly),
+     * fallback to runtime reflection for beans without generated assembler.
      */
     private void exportService(Object bean) {
         Class<?> beanClass = bean.getClass();
+        List<AutumnServiceAssembler> assemblers = SpiUtil.loads(AutumnServiceAssembler.class);
+        boolean exported = false;
+        if (assemblers != null && !assemblers.isEmpty()) {
+            for (AutumnServiceAssembler assembler : assemblers) {
+                try {
+                    if (assembler.supports(beanClass)) {
+                        AutumnBootstrap.getInstance().service(assembler.build(bean));
+                        exported = true;
+                        log.info("autumn export service by generated assembler, bean:{}, assembler:{}", beanClass.getName(), assembler.getClass().getName());
+                    }
+                } catch (Exception e) {
+                    log.warn("autumn export service fail by generated assembler, bean:{}, assembler:{}", beanClass.getName(), assembler.getClass().getName(), e);
+                }
+            }
+        }
+        if (exported) {
+            return;
+        }
         boolean annotated = beanClass.isAnnotationPresent(Export.class);
         List<Class<?>> ifaces = new ArrayList<>();
         for (Class<?> itf : beanClass.getInterfaces()) {
@@ -174,7 +211,12 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                         config.setRegistryTypeEnum(RegistryTypeEnum.DIRECT);
                     }
                 } else {
-                    config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
+                    String registryType = ApplicationConfig.getInstance().getRegistryType();
+                    if ("consul".equalsIgnoreCase(registryType)) {
+                        config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
+                    } else {
+                        config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
+                    }
                 }
                 config.setPoolTimeout(10000L);
                 config.setSocketTimeout(3000L);

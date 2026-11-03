@@ -1,20 +1,186 @@
 package com.microapp.autumn.test;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ToolProvider;
+
 import org.junit.jupiter.api.Test;
+
+import com.microapp.autumn.api.config.ServiceConfig;
+import com.microapp.autumn.api.extension.AutumnServiceAssembler;
 
 import lombok.extern.slf4j.Slf4j;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 /**
+ * integration test for JSR-269 code generation chain:
+ * compile sample sources with @Export / @Reference, assert generated
+ * _XxxServiceRegister / _XxxProxy classes and SPI services file exist and work.
+ *
  * @author: baoxin.zhao
- * @date: 2024/11/10
+ * @date: 2026/11/3
  */
 
 @Slf4j
 public class CompilerTest {
 
+    private static final String THRIFT_IFACE_SRC = """
+            package com.sample.api;
+
+            public class SomeService {
+                public interface Iface {
+                    String echo(String msg) throws org.apache.thrift.TException;
+                    int addUser(com.sample.api.User user) throws org.apache.thrift.TException;
+                }
+                public static class Processor<I extends Iface> implements org.apache.thrift.TProcessor {
+                    private final I iface;
+                    public Processor(I iface) { this.iface = iface; }
+                    @Override
+                    public void process(org.apache.thrift.protocol.TProtocol in, org.apache.thrift.protocol.TProtocol out) throws org.apache.thrift.TException { }
+                    public I getIface() { return iface; }
+                }
+                public static class Client extends org.apache.thrift.TServiceClient implements Iface {
+                    public Client(org.apache.thrift.protocol.TProtocol prot) { super(prot); }
+                    @Override
+                    public String echo(String msg) throws org.apache.thrift.TException { return null; }
+                    @Override
+                    public int addUser(com.sample.api.User user) throws org.apache.thrift.TException { return 0; }
+                }
+            }
+            """;
+
+    private static final String USER_SRC = """
+            package com.sample.api;
+
+            public class User {
+                private int userId;
+                public int getUserId() { return userId; }
+                public void setUserId(int userId) { this.userId = userId; }
+            }
+            """;
+
+    private static final String EXPORT_IMPL_SRC = """
+            package com.sample.service;
+
+            import com.microapp.autumn.api.annotation.Export;
+            import com.sample.api.SomeService;
+
+            @Export
+            public class SomeServiceImpl implements SomeService.Iface {
+                @Override
+                public String echo(String msg) throws org.apache.thrift.TException { return "Hello, " + msg; }
+                @Override
+                public int addUser(com.sample.api.User user) throws org.apache.thrift.TException { return 1; }
+            }
+            """;
+
+    private static final String REFERENCE_CONSUMER_SRC = """
+            package com.sample.consumer;
+
+            import com.microapp.autumn.api.annotation.Reference;
+            import com.sample.api.SomeService;
+
+            public class SomeConsumer {
+                @Reference(refer = "training-b")
+                private SomeService.Iface someService;
+            }
+            """;
+
     @Test
-    void test() {
-        log.info("==========================");
+    void testGenerateCode() throws Exception {
+        Path workDir = Files.createTempDirectory("autumn-compiler-test");
+        Path srcDir = workDir.resolve("src");
+        Path outDir = workDir.resolve("out");
+        Files.createDirectories(srcDir);
+        Files.createDirectories(outDir);
+
+        writeSource(srcDir, "com/sample/api/SomeService.java", THRIFT_IFACE_SRC);
+        writeSource(srcDir, "com/sample/api/User.java", USER_SRC);
+        writeSource(srcDir, "com/sample/service/SomeServiceImpl.java", EXPORT_IMPL_SRC);
+        writeSource(srcDir, "com/sample/consumer/SomeConsumer.java", REFERENCE_CONSUMER_SRC);
+
+        String classpath = System.getProperty("surefire.test.class.path");
+        if (classpath == null || classpath.isEmpty()) {
+            classpath = System.getProperty("java.class.path");
+        }
+
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        assertNotNull(compiler, "system java compiler should be available");
+        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+        try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
+            List<File> sourceFiles = Arrays.asList(
+                    srcDir.resolve("com/sample/api/SomeService.java").toFile(),
+                    srcDir.resolve("com/sample/api/User.java").toFile(),
+                    srcDir.resolve("com/sample/service/SomeServiceImpl.java").toFile(),
+                    srcDir.resolve("com/sample/consumer/SomeConsumer.java").toFile());
+            Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromFiles(sourceFiles);
+            List<String> options = Arrays.asList(
+                    "-classpath", classpath,
+                    "-d", outDir.toString());
+            JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, units);
+            Boolean success = task.call();
+            if (!Boolean.TRUE.equals(success)) {
+                for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+                    log.error("javac diagnostic:{}", diagnostic);
+                }
+            }
+            assertTrue(Boolean.TRUE.equals(success), "sample source compile should succeed");
+        }
+
+        // 1. export register class generated
+        Path registerClass = outDir.resolve("com/sample/service/_SomeServiceImplServiceRegister.class");
+        assertTrue(Files.exists(registerClass), "generated _SomeServiceImplServiceRegister.class should exist");
+
+        // 2. reference proxy class generated
+        Path proxyClass = outDir.resolve("com/sample/api/_SomeServiceProxy.class");
+        assertTrue(Files.exists(proxyClass), "generated _SomeServiceProxy.class should exist");
+
+        // 3. SPI services file generated
+        Path servicesFile = outDir.resolve("META-INF/services/com.microapp.autumn.api.extension.AutumnServiceAssembler");
+        assertTrue(Files.exists(servicesFile), "SPI services file should exist");
+        String servicesContent = Files.readString(servicesFile, StandardCharsets.UTF_8);
+        log.info("services content:{}", servicesContent);
+        assertTrue(servicesContent.contains("com.sample.service._SomeServiceImplServiceRegister"), "services file should register generated assembler");
+
+        // 4. generated assembler works without reflection on thrift classes
+        ClassLoader loader = new java.net.URLClassLoader(new java.net.URL[]{outDir.toUri().toURL()}, getClass().getClassLoader());
+        Class<?> registerClazz = Class.forName("com.sample.service._SomeServiceImplServiceRegister", true, loader);
+        Constructor<?> ctor = registerClazz.getDeclaredConstructor();
+        Object register = ctor.newInstance();
+        assertTrue(register instanceof AutumnServiceAssembler, "generated class should implement AutumnServiceAssembler");
+        AutumnServiceAssembler assembler = (AutumnServiceAssembler) register;
+
+        Class<?> implClazz = Class.forName("com.sample.service.SomeServiceImpl", true, loader);
+        Object impl = implClazz.getDeclaredConstructor().newInstance();
+        assertTrue(assembler.supports(implClazz), "assembler should support the impl class");
+        assertTrue(!assembler.supports(Object.class), "assembler should not support unrelated class");
+
+        ServiceConfig<?> serviceConfig = assembler.build(impl);
+        assertNotNull(serviceConfig, "assembler build should return ServiceConfig");
+        assertEquals("com.sample.api.SomeService.Iface", serviceConfig.getInterfaceClass().getName(),
+                "ServiceConfig interfaceClass should be the thrift Iface interface");
+        assertNotNull(serviceConfig.getRef(), "ServiceConfig ref should be a TProcessor");
     }
 
+    private void writeSource(Path srcDir, String relative, String content) throws IOException {
+        Path file = srcDir.resolve(relative);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, content, StandardCharsets.UTF_8);
+    }
 }

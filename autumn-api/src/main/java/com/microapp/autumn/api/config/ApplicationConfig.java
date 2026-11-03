@@ -33,6 +33,34 @@ public class ApplicationConfig {
     private Integer multicastPort;
     private String jvm;
     private String arch;
+    /**
+     * whether register into consul, default true
+     */
+    private Boolean consulRegister;
+    /**
+     * whether discovery consul service, default true
+     */
+    private Boolean consulDiscovery;
+    /**
+     * consul instance id, default [application]:[ip]:[port]
+     */
+    private String consulInstanceId;
+    /**
+     * consul health check interval, unit second, default 10
+     */
+    private Integer consulHealthCheckInterval;
+    /**
+     * consul server host, default 127.0.0.1
+     */
+    private String consulHost;
+    /**
+     * consul server port, default 8500
+     */
+    private Integer consulPort;
+    /**
+     * consul namespace
+     */
+    private String consulNamespace;
     public static ApplicationConfig getInstance() {
         if(Objects.isNull(instance)) {
             synchronized (ApplicationConfig.class) {
@@ -93,6 +121,29 @@ public class ApplicationConfig {
             multicast_port = "5555";
         }
         this.multicastPort = Integer.valueOf(multicast_port);
+
+        String consulRegisterValue = properties.getProperty("consul.register");
+        this.consulRegister = Boolean.valueOf((Objects.isNull(consulRegisterValue) || consulRegisterValue.length() < 1)
+                ? Boolean.TRUE.toString() : consulRegisterValue);
+
+        String consulDiscoveryValue = properties.getProperty("consul.discovery");
+        this.consulDiscovery = Boolean.valueOf((Objects.isNull(consulDiscoveryValue) || consulDiscoveryValue.length() < 1)
+                ? Boolean.TRUE.toString() : consulDiscoveryValue);
+
+        this.consulInstanceId = properties.getProperty("consul.instance-id");
+
+        String healthCheckInterval = properties.getProperty("consul.health-check-interval");
+        this.consulHealthCheckInterval = Integer.valueOf((Objects.isNull(healthCheckInterval) || healthCheckInterval.length() < 1)
+                ? "10" : healthCheckInterval);
+
+        String consulHostValue = properties.getProperty("consul.host");
+        this.consulHost = (Objects.isNull(consulHostValue) || consulHostValue.length() < 1) ? "127.0.0.1" : consulHostValue;
+
+        String consulPortValue = properties.getProperty("consul.port");
+        this.consulPort = Integer.valueOf((Objects.isNull(consulPortValue) || consulPortValue.length() < 1) ? "8500" : consulPortValue);
+
+        this.consulNamespace = properties.getProperty("consul.namespace");
+
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
         String jvm = runtime.getVmName();
         this.jvm = jvm;
