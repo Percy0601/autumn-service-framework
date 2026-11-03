@@ -34,6 +34,7 @@ public class MulticastDiscoveryTest {
 
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo, blocks forever")
     void testDiscovery() {
         Discovery discovery = SpiUtil.load(Discovery.class);
         discovery.watch("training-a");
@@ -59,6 +60,7 @@ public class MulticastDiscoveryTest {
 
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo, blocks forever")
     void testRegistry() {
         Registry registry = SpiUtil.load(Registry.class);
         registry.register();
@@ -86,6 +88,7 @@ public class MulticastDiscoveryTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo, blocks forever")
     void testSender() {
         MulticastSocket sendSocket = null;
         try {
@@ -102,6 +105,7 @@ public class MulticastDiscoveryTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo, blocks forever")
     void testReceive() {
         MulticastSocket receSocket = null;
         try {
@@ -182,6 +186,7 @@ public class MulticastDiscoveryTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo, blocks forever")
     void test3() {
         InetAddress group = null;
         try {
@@ -219,6 +224,7 @@ public class MulticastDiscoveryTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo, blocks forever")
     void test4() {
         InetAddress group = null;
         try {
