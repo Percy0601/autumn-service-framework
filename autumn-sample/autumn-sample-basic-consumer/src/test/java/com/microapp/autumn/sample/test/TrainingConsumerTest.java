@@ -36,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TrainingConsumerTest {
 
     @Test
+    @org.junit.jupiter.api.Disabled("interactive demo: needs a running provider and blocks on System.in")
     void testConsumer() {
 
         AutumnBootstrap.getInstance().serve();
@@ -96,20 +97,20 @@ public class TrainingConsumerTest {
     @Test
     void testTSerializer() {
         try {
-            TSerializer serializer = new TSerializer(new TJSONProtocol.Factory());
+            // libthrift 0.22 removed read support on TSimpleJSONProtocol; use binary protocol
+            // to verify a real serialize -> deserialize round-trip.
+            TSerializer serializer = new TSerializer(new TBinaryProtocol.Factory());
 
             User user = new User();
             user.setUserId(1);
             user.setUsername("Hello");
             byte[] bytes = serializer.serialize(user);
-            String result = new String(bytes);
 
-            log.info("==================, {}", result);
+            log.info("==================, {}", new String(bytes));
 
-            TDeserializer deserializer = new TDeserializer(new TSimpleJSONProtocol.Factory());
+            TDeserializer deserializer = new TDeserializer(new TBinaryProtocol.Factory());
             User user2 = new User();
-            String json2 = "{\"userId\":2,\"username\":\"Hello2\"}";
-            deserializer.deserialize(user2, result, "utf-8");
+            deserializer.deserialize(user2, bytes);
             log.info("==================, user2:{}", user2);
         } catch (TTransportException e) {
             throw new RuntimeException(e);
