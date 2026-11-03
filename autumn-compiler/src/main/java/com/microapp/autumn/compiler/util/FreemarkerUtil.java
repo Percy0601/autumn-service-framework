@@ -3,6 +3,7 @@ package com.microapp.autumn.compiler.util;
 import com.microapp.autumn.compiler.model.ReferenceEntry;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
+import freemarker.template.TemplateExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.Writer;
@@ -24,6 +25,7 @@ public class FreemarkerUtil {
         Configuration configuration = new Configuration(Configuration.VERSION_2_3_31);
         configuration.setClassForTemplateLoading(FreemarkerUtil.class, "/templates");
         configuration.setDefaultEncoding("utf-8");
+        configuration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         return configuration.getTemplate(templateName);
     }
 

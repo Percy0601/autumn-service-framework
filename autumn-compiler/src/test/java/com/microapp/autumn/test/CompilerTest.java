@@ -115,10 +115,7 @@ public class CompilerTest {
         writeSource(srcDir, "com/sample/service/SomeServiceImpl.java", EXPORT_IMPL_SRC);
         writeSource(srcDir, "com/sample/consumer/SomeConsumer.java", REFERENCE_CONSUMER_SRC);
 
-        String classpath = System.getProperty("surefire.test.class.path");
-        if (classpath == null || classpath.isEmpty()) {
-            classpath = System.getProperty("java.class.path");
-        }
+        String classpath = buildClasspath();
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         assertNotNull(compiler, "system java compiler should be available");
@@ -132,8 +129,12 @@ public class CompilerTest {
             Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromFiles(sourceFiles);
             List<String> options = Arrays.asList(
                     "-classpath", classpath,
+                    "-proc:full",
                     "-d", outDir.toString());
-            JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, diagnostics, options, null, units);
+            // pass processors explicitly to avoid relying on javac service discovery
+            com.sun.source.util.JavacTask task = (com.sun.source.util.JavacTask) compiler.getTask(null, fileManager, diagnostics, options, null, units);
+            task.setProcessors(Arrays.asList(new com.microapp.autumn.compiler.ExportServiceProcessor(),
+                    new com.microapp.autumn.compiler.ReferenceServiceProcessor()));
             Boolean success = task.call();
             if (!Boolean.TRUE.equals(success)) {
                 for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
@@ -176,6 +177,36 @@ public class CompilerTest {
         assertEquals("com.sample.api.SomeService.Iface", serviceConfig.getInterfaceClass().getName(),
                 "ServiceConfig interfaceClass should be the thrift Iface interface");
         assertNotNull(serviceConfig.getRef(), "ServiceConfig ref should be a TProcessor");
+    }
+
+    /**
+     * collect required jars for javac by code source location of key classes:
+     * libthrift / autumn-api / autumn-core / freemarker / autumn-compiler(processor+templates).
+     * surefire forks with a manifest-only booter jar, so java.class.path is not usable directly.
+     */
+    private static String buildClasspath() throws Exception {
+        java.util.LinkedHashSet<String> entries = new java.util.LinkedHashSet<>();
+        String[] classes = {
+                "org.apache.thrift.TException",
+                "org.apache.thrift.protocol.TProtocol",
+                "org.apache.thrift.TServiceClient",
+                "com.microapp.autumn.api.annotation.Export",
+                "com.microapp.autumn.api.annotation.Reference",
+                "com.microapp.autumn.api.config.ServiceConfig",
+                "com.microapp.autumn.api.extension.AttachableProcessor",
+                "com.microapp.autumn.api.extension.AutumnServiceAssembler",
+                "com.microapp.autumn.api.util.AutumnException",
+                "com.microapp.autumn.core.pool.AutumnPool",
+                "com.microapp.autumn.core.pool.impl.ConcurrentBagEntry",
+                "freemarker.template.Configuration",
+                "com.microapp.autumn.compiler.ExportServiceProcessor"
+        };
+        for (String name : classes) {
+            Class<?> c = Class.forName(name);
+            java.net.URI loc = c.getProtectionDomain().getCodeSource().getLocation().toURI();
+            entries.add(new File(loc).getPath());
+        }
+        return String.join(File.pathSeparator, entries);
     }
 
     private void writeSource(Path srcDir, String relative, String content) throws IOException {

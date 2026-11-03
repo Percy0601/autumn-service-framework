@@ -13,7 +13,7 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
     }
 <#list methods as method>
     @Override
-    public ${method.returnType} ${method.name}(<#list method.paramTypes as paramType><#if paramType_index > 0>, </#if>${paramType} var${paramType_index}</#list>) throws org.apache.thrift.TException {
+    public ${method.returnType} ${method.name}(<#list method.paramTypes as paramType><#if (paramType_index > 0)>, </#if>${paramType} var${paramType_index}</#list>) throws org.apache.thrift.TException {
         com.microapp.autumn.core.pool.impl.ConcurrentBagEntry entry = null;
         try {
             entry = com.microapp.autumn.core.pool.AutumnPool.getInstance().borrow(service);
@@ -25,9 +25,9 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
             org.apache.thrift.protocol.TMultiplexedProtocol multiplexedProtocol = new org.apache.thrift.protocol.TMultiplexedProtocol(protocol, ${ifaceName}.class.getName());
             ${outerName}.Client client = new ${outerName}.Client(multiplexedProtocol);
             <#if method.returnType == "void">
-            client.${method.name}(<#list method.paramTypes as paramType><#if paramType_index > 0>, </#if>var${paramType_index}</#list>);
+            client.${method.name}(<#list method.paramTypes as paramType><#if (paramType_index > 0)>, </#if>var${paramType_index}</#list>);
             <#else>
-            return client.${method.name}(<#list method.paramTypes as paramType><#if paramType_index > 0>, </#if>var${paramType_index}</#list>);
+            return client.${method.name}(<#list method.paramTypes as paramType><#if (paramType_index > 0)>, </#if>var${paramType_index}</#list>);
             </#if>
         } finally {
             if (entry != null) {
