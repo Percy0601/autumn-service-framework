@@ -116,33 +116,29 @@ public class CompilerTest {
         writeSource(srcDir, "com/sample/consumer/SomeConsumer.java", REFERENCE_CONSUMER_SRC);
 
         String classpath = buildClasspath();
+        log.info("test classpath:{}", classpath);
 
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        assertNotNull(compiler, "system java compiler should be available");
-        DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-        try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, StandardCharsets.UTF_8)) {
-            List<File> sourceFiles = Arrays.asList(
-                    srcDir.resolve("com/sample/api/SomeService.java").toFile(),
-                    srcDir.resolve("com/sample/api/User.java").toFile(),
-                    srcDir.resolve("com/sample/service/SomeServiceImpl.java").toFile(),
-                    srcDir.resolve("com/sample/consumer/SomeConsumer.java").toFile());
-            Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromFiles(sourceFiles);
-            List<String> options = Arrays.asList(
-                    "-classpath", classpath,
-                    "-proc:full",
-                    "-d", outDir.toString());
-            // pass processors explicitly to avoid relying on javac service discovery
-            com.sun.source.util.JavacTask task = (com.sun.source.util.JavacTask) compiler.getTask(null, fileManager, diagnostics, options, null, units);
-            task.setProcessors(Arrays.asList(new com.microapp.autumn.compiler.ExportServiceProcessor(),
-                    new com.microapp.autumn.compiler.ReferenceServiceProcessor()));
-            Boolean success = task.call();
-            if (!Boolean.TRUE.equals(success)) {
-                for (Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-                    log.error("javac diagnostic:{}", diagnostic);
-                }
-            }
-            assertTrue(Boolean.TRUE.equals(success), "sample source compile should succeed");
+        // invoke javac CLI directly (same as maven annotationProcessorPaths): reliable processor
+        // discovery via -processorpath, no JavaCompiler API quirks under JDK 25
+        String javac = Path.of(System.getProperty("java.home"), "bin", "javac").toString();
+        List<String> cmd = new ArrayList<>();
+        cmd.add(javac);
+        cmd.addAll(Arrays.asList(
+                "-classpath", classpath,
+                "-processorpath", classpath,
+                "-proc:full",
+                "-d", outDir.toString(),
+                srcDir.resolve("com/sample/api/SomeService.java").toString(),
+                srcDir.resolve("com/sample/api/User.java").toString(),
+                srcDir.resolve("com/sample/service/SomeServiceImpl.java").toString(),
+                srcDir.resolve("com/sample/consumer/SomeConsumer.java").toString()));
+        Process javacProcess = new ProcessBuilder(cmd).redirectErrorStream(true).start();
+        String javacOutput = new String(javacProcess.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        int exitCode = javacProcess.waitFor();
+        if (exitCode != 0) {
+            log.error("javac output:{}", javacOutput);
         }
+        assertTrue(exitCode == 0, "sample source compile should succeed: " + javacOutput);
 
         // 1. export register class generated
         Path registerClass = outDir.resolve("com/sample/service/_SomeServiceImplServiceRegister.class");
@@ -174,7 +170,7 @@ public class CompilerTest {
 
         ServiceConfig<?> serviceConfig = assembler.build(impl);
         assertNotNull(serviceConfig, "assembler build should return ServiceConfig");
-        assertEquals("com.sample.api.SomeService.Iface", serviceConfig.getInterfaceClass().getName(),
+        assertEquals("com.sample.api.SomeService$Iface", serviceConfig.getInterfaceClass().getName(),
                 "ServiceConfig interfaceClass should be the thrift Iface interface");
         assertNotNull(serviceConfig.getRef(), "ServiceConfig ref should be a TProcessor");
     }
@@ -199,6 +195,7 @@ public class CompilerTest {
                 "com.microapp.autumn.core.pool.AutumnPool",
                 "com.microapp.autumn.core.pool.impl.ConcurrentBagEntry",
                 "freemarker.template.Configuration",
+                "org.slf4j.LoggerFactory",
                 "com.microapp.autumn.compiler.ExportServiceProcessor"
         };
         for (String name : classes) {

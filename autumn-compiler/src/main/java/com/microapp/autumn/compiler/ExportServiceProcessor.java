@@ -120,7 +120,10 @@ public class ExportServiceProcessor extends AbstractProcessor {
                 String ifaceOuterName = ifaceName.substring(0, ifaceName.length() - IFACE_SUFFIX.length());
                 String generatedFullName = packageName + "._" + simpleClassName + SERVICE_REGISTER_SUFFIX;
                 JavaFileObject builderFile = mFilerUtils.createSourceFile(generatedFullName);
-                FreemarkerUtil.handleServer(packageName, simpleClassName, implFullName, ifaceName, ifaceOuterName, builderFile.openWriter());
+                // must close the writer: javac skips generated sources whose writer is left open
+                try (java.io.Writer sourceWriter = builderFile.openWriter()) {
+                    FreemarkerUtil.handleServer(packageName, simpleClassName, implFullName, ifaceName, ifaceOuterName, sourceWriter);
+                }
                 log.info("autumn export generate register class:{}", generatedFullName);
                 services.append(generatedFullName).append("\n");
             }

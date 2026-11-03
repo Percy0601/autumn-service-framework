@@ -124,8 +124,11 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
                 String outerSimpleName = ClassNameUtil.getSimpleClassName(ifaceOuterName);
                 String generatedFullName = packageName + "._" + outerSimpleName + PROXY_SUFFIX;
                 JavaFileObject builderFile = processingEnv.getFiler().createSourceFile(generatedFullName);
-                FreemarkerUtil.handleProxy(packageName, outerSimpleName, ifaceName, ifaceOuterName,
-                        entry.getReferApplication(), entry, builderFile.openWriter());
+                // must close the writer: javac skips generated sources whose writer is left open
+                try (java.io.Writer sourceWriter = builderFile.openWriter()) {
+                    FreemarkerUtil.handleProxy(packageName, outerSimpleName, ifaceName, ifaceOuterName,
+                            entry.getReferApplication(), entry, sourceWriter);
+                }
                 log.info("autumn reference generate proxy class:{}, refer:{}", generatedFullName, entry.getReferApplication());
             } catch (Exception e) {
                 log.warn("handleWrite Proxy Exception:", e);
