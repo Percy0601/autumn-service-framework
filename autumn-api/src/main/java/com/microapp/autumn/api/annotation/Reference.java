@@ -11,7 +11,7 @@ import javax.annotation.Resource;
  * reference remote service
  */
 @Target({ElementType.FIELD, ElementType.METHOD})
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.RUNTIME)
 @Resource
 public @interface Reference {
     /**

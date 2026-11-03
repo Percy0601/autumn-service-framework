@@ -18,6 +18,7 @@ import org.apache.thrift.transport.layered.TFramedTransport;
 import com.microapp.autumn.api.Discovery;
 import com.microapp.autumn.api.config.ConsumerConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
+import com.microapp.autumn.api.enums.RegistryTypeEnum;
 import com.microapp.autumn.api.util.AutumnException;
 import com.microapp.autumn.api.util.SpiUtil;
 
@@ -83,8 +84,14 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     private synchronized Boolean scale() {
-        Discovery discovery = SpiUtil.load(Discovery.class);
-        List<ConsumerConfig> instances = discovery.getInstances(config.getName());
+        List<ConsumerConfig> instances = null;
+        if(RegistryTypeEnum.DIRECT == config.getRegistryTypeEnum()) {
+            // direct connect: use pre-configured instances, skip discovery
+            instances = config.getInstances();
+        } else {
+            Discovery discovery = SpiUtil.load(Discovery.class);
+            instances = discovery.getInstances(config.getName());
+        }
         config.setInstances(instances);
         List<ConsumerConfig> consumerConfigs = config.getInstances();
         if(Objects.isNull(consumerConfigs)) {

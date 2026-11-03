@@ -97,6 +97,16 @@
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
+                <groupId>com.micro-app</groupId>
+                <artifactId>autumn-spring-boot-autoconfigure</artifactId>
+                <version>1.0.0-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>com.micro-app</groupId>
+                <artifactId>autumn-spring-boot-starter</artifactId>
+                <version>1.0.0-SNAPSHOT</version>
+            </dependency>
+            <dependency>
                 <groupId>jakarta.annotation</groupId>
                 <artifactId>jakarta.annotation-api</artifactId>
                 <version>${annotation-api.version}</version>

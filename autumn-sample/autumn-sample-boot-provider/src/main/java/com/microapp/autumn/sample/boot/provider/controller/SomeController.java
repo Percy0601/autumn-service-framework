@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.microapp.autumn.sample.boot.provider.service.BootProviderServiceImpl$Autumn;
+import com.microapp.autumn.sample.boot.provider.service.SomeServiceConsumer;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,13 +19,13 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/boot-sample-provider")
 public class SomeController {
     @Autowired
-    BootProviderServiceImpl$Autumn bootProviderServiceImpl$Autumn;
+    private SomeServiceConsumer someServiceConsumer;
 
     @GetMapping("/hello")
     public String hello() {
         log.info("===================");
         try {
-            String result = bootProviderServiceImpl$Autumn.echo("213");
+            String result = someServiceConsumer.echo("213");
             return result;
         } catch (TException e) {
             throw new RuntimeException(e);

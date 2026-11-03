@@ -82,6 +82,10 @@ public class AutumnProvider {
                 Properties properties = CommonUtil.readClasspath("application.properties");
                 ProviderConfig providerConfig = ProviderConfig.getInstance();
                 providerConfig.init(properties);
+                if(!Boolean.TRUE.equals(providerConfig.getEnabled())) {
+                    log.info("autumn provider disabled, skip thrift server start.");
+                    return;
+                }
 
                 ThreadUtil singleton = ThreadUtil.getInstance();
                 ExecutorService executorService = singleton.getWorkerExecutor(providerConfig);
@@ -100,7 +104,7 @@ public class AutumnProvider {
                 controlApiService.setInterfaceClass(ControlApi.Iface.class);
                 TProcessor controlProcessor = new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl());
                 AttachableProcessor attachableProcessor = new AttachableProcessor(controlProcessor);
-                controlApiService.setRef(controlProcessor);
+                controlApiService.setRef(attachableProcessor);
                 service(controlApiService);
                 TServer server = new TThreadedSelectorServer(tArgs);
                 log.info("autumn server running, services:{}", services.keySet());

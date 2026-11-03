@@ -30,8 +30,12 @@
             <artifactId>jakarta.annotation-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.micro-app</groupId>
-            <artifactId>autumn-core</artifactId>
+            <artifactId>autumn-spring-boot-starter</artifactId>
         </dependency>
         <dependency>
             <groupId>com.micro-app</groupId>
@@ -49,6 +53,10 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
@@ -60,6 +68,11 @@
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>com.micro-app</groupId>
+                            <artifactId>autumn-compiler</artifactId>
+                            <version>1.0.0-SNAPSHOT</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

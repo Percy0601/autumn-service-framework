@@ -26,6 +26,10 @@ public class ProviderConfig {
     private Integer threadQueueSize;
     private Integer timeout;
     private Boolean enabled;
+    /**
+     * whether config already initialized, avoid classpath config overwrite spring config
+     */
+    private volatile Boolean initialized = Boolean.FALSE;
 
     public static ProviderConfig getInstance() {
         if(Objects.isNull(instance)) {
@@ -39,6 +43,9 @@ public class ProviderConfig {
     }
 
     public void init(Properties properties) {
+        if(Boolean.TRUE.equals(initialized)) {
+            return;
+        }
         String enabledValue = properties.getProperty("provider.enabled");
         if(Objects.nonNull(enabledValue) && enabledValue.length() > 0) {
             Boolean _enabled = Boolean.valueOf(enabledValue);
@@ -96,6 +103,6 @@ public class ProviderConfig {
         } else {
             this.ip = CommonUtil.getHostIpAddress();
         }
-
+        this.initialized = Boolean.TRUE;
     }
 }

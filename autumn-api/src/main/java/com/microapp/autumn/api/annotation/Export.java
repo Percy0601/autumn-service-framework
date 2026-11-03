@@ -9,7 +9,7 @@ import java.lang.annotation.Target;
  * export service
  */
 @Target({ElementType.TYPE})
-@Retention(RetentionPolicy.SOURCE)
+@Retention(RetentionPolicy.RUNTIME)
 public @interface Export {
     String name() default "";
 }

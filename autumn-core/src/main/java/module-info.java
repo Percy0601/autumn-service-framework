@@ -11,6 +11,7 @@ module autumn.core {
     exports com.microapp.autumn.core.server;
     exports com.microapp.autumn.core;
     exports com.microapp.autumn.core.pool;
+    exports com.microapp.autumn.core.pool.impl;
     exports com.microapp.autumn.core.registry;
 
     uses com.microapp.autumn.api.Registry;

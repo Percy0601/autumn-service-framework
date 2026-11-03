@@ -42,23 +42,21 @@ public class ApplicationConfig {
                     if(Objects.isNull(appName) || appName.length() < 1) {
                         appName = System.getenv("spring.application.name");
                     }
-                    Properties properties = CommonUtil.readClasspath("application.properties");
-                    if(Objects.isNull(properties)) {
-                        log.info("application start with params: -Dspring.application.name=xxx and ensure path exist config file: /opt/autumn/xxx.properties");
-                        System.exit(0);
-                        return null;
-                    }
                     log.info("application name is: {}", appName);
                     instance.name = appName;
 
-                    Properties configProperties = CommonUtil.readClasspath(appName.concat(".properties"));
-                    if(Objects.isNull(properties)) {
-                        log.info("application start config file: /opt/autumn/[app].properties");
-                        System.exit(0);
-                        return null;
+                    Properties configProperties = null;
+                    if(Objects.nonNull(appName) && appName.length() > 0) {
+                        configProperties = CommonUtil.readClasspath(appName.concat(".properties"));
                     }
-
-                    instance.init(configProperties);
+                    if(Objects.isNull(configProperties)) {
+                        configProperties = CommonUtil.readClasspath("application.properties");
+                    }
+                    if(Objects.nonNull(configProperties)) {
+                        instance.init(configProperties);
+                    } else {
+                        log.warn("autumn application config not found, use default config: registry-type=multicast, multicast-ip=224.0.0.1, multicast-port=5555");
+                    }
                 }
             }
         }
@@ -66,9 +64,20 @@ public class ApplicationConfig {
     }
 
     public void init(Properties properties) {
+        if(Objects.isNull(properties)) {
+            return;
+        }
+
+        String nameValue = properties.getProperty("application.name");
+        if(Objects.isNull(nameValue) || nameValue.length() < 1) {
+            nameValue = properties.getProperty("spring.application.name");
+        }
+        if(Objects.nonNull(nameValue) && nameValue.length() > 0) {
+            this.name = nameValue;
+        }
 
         String registry_type = properties.getProperty("application.registry-type");
-        if(Objects.isNull(registryType) || registryType.length() < 1) {
+        if(Objects.isNull(registry_type) || registry_type.length() < 1) {
             registry_type = "multicast";
         }
         this.registryType = registry_type;
