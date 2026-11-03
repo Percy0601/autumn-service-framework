@@ -1,8 +1,10 @@
 package com.microapp.autumn.boot.config;
 
+import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Role;
 
 import com.microapp.autumn.boot.AutumnBeanPostProcessor;
 import com.microapp.autumn.boot.AutumnLifecycle;
@@ -20,11 +22,17 @@ import com.microapp.autumn.boot.AutumnLifecycle;
  * @date: 2026/11/3
  */
 @AutoConfiguration
-@EnableConfigurationProperties(AutumnProperties.class)
 public class AutumnAutoConfig {
 
     @Bean
-    public AutumnBeanPostProcessor autumnBeanPostProcessor(AutumnProperties properties) {
+    @ConfigurationProperties(prefix = "autumn")
+    @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
+    public static AutumnProperties autumnProperties() {
+        return new AutumnProperties();
+    }
+
+    @Bean
+    public static AutumnBeanPostProcessor autumnBeanPostProcessor(AutumnProperties properties) {
         return new AutumnBeanPostProcessor(properties);
     }
 

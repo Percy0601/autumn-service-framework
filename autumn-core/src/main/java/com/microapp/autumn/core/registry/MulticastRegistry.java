@@ -40,6 +40,7 @@ public class MulticastRegistry implements Registry, Discovery {
     private volatile InetAddress group;
     private ConcurrentHashMap<String, ConsumerConfig> instances = new ConcurrentHashMap();
     private Map<String, AtomicInteger> mapping = new ConcurrentHashMap<>();
+    private final AtomicBoolean heartbeatStarted = new AtomicBoolean(false);
 
     public static MulticastRegistry provider() {
         if(Objects.isNull(instance)) {
@@ -139,10 +140,10 @@ public class MulticastRegistry implements Registry, Discovery {
                 .concat(consumerConfig.getIp())
                 .concat(":")
                 .concat(consumerConfig.getPort().toString());
-        if(instances.contains(hash)) {
+        if(instances.containsKey(hash)) {
             ConsumerConfig instance = instances.get(hash);
             Integer version = instance.getVersion();
-            instance.setVersion(version);
+            instance.setVersion(Objects.isNull(version) ? 2 : version + 1);
             instance.setLatestTime(System.currentTimeMillis());
             return;
         }
@@ -153,7 +154,18 @@ public class MulticastRegistry implements Registry, Discovery {
     }
 
     private void removeInstance(ConsumerConfig consumerConfig) {
-        instances.remove(consumerConfig);
+        if(Objects.isNull(consumerConfig) || Objects.isNull(consumerConfig.getName())
+                || Objects.isNull(consumerConfig.getIp()) || Objects.isNull(consumerConfig.getPort())) {
+            return;
+        }
+        String hash = consumerConfig.getName().concat(":")
+                .concat(consumerConfig.getIp())
+                .concat(":")
+                .concat(consumerConfig.getPort().toString());
+        ConsumerConfig removed = instances.remove(hash);
+        if(Objects.nonNull(removed)) {
+            log.warn("multicast discovery remove instance, config:{}", removed);
+        }
     }
 
 
@@ -170,15 +182,46 @@ public class MulticastRegistry implements Registry, Discovery {
         return result.get(name);
     }
 
+    /**
+     * instance expire time: 10 seconds without registry packet
+     */
+    private static final long INSTANCE_EXPIRE_MILLIS = 10 * 1000L;
+    /**
+     * health check interval: 5 seconds
+     */
+    private static final long HEALTH_CHECK_INTERVAL_MILLIS = 5 * 1000L;
+    /**
+     * heartbeat re-register interval: 5 seconds, less than instance expire time
+     */
+    private static final long HEARTBEAT_INTERVAL_MILLIS = 5 * 1000L;
+
     @Override
     public void checkHealth() {
-//        instances.forEach((k, v) -> {
-//            ConsumerConfig instance = v;
-//            if(System.currentTimeMillis() - instance.getLatestTime() > 10 * 1000) {
-//                instances.remove(k);
-//                AutumnPool.getInstance().leave(v);
-//            }
-//        });
+        Runnable runnable = () -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    long now = System.currentTimeMillis();
+                    instances.forEach((k, v) -> {
+                        ConsumerConfig instance = v;
+                        Long latestTime = instance.getLatestTime();
+                        if (Objects.nonNull(latestTime) && now - latestTime > INSTANCE_EXPIRE_MILLIS) {
+                            if (instances.remove(k, v)) {
+                                log.warn("multicast discovery instance expired, remove. config:{}", v);
+                                AutumnPool.getInstance().leave(v);
+                            }
+                        }
+                    });
+                    Thread.sleep(HEALTH_CHECK_INTERVAL_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        };
+        Thread thread = new Thread(runnable, "autumn-multicast-health");
+        thread.setDaemon(true);
+        thread.start();
+        log.info("autumn-multicast-health check begin, expire:{}, interval:{}", INSTANCE_EXPIRE_MILLIS, HEALTH_CHECK_INTERVAL_MILLIS);
     }
 
 
@@ -234,19 +277,58 @@ public class MulticastRegistry implements Registry, Discovery {
         }
         log.info("autumn-multicast registry ip:{}, port:{}, config:{}", config.getIp(), port, registryRequest);
         try {
-            if(Objects.isNull(mc)) {
-                ApplicationConfig applicationConfig = ApplicationConfig.getInstance();
-                String ip = applicationConfig.getMulticastIp();
-                mc = new MulticastSocket(port);
-                group = InetAddress.getByName(ip);
-                mc.joinGroup(group);
-            }
-            byte[] buffer = registryRequest.getBytes();
+            ensureSocket(port);
+            send(registryRequest, port);
+        } catch (Exception e) {
+            log.warn("autumn-multicast-registry receive exception: ", e);
+        }
+        startHeartbeat(port, config);
+    }
+
+    private void ensureSocket(Integer port) throws IOException {
+        if(Objects.isNull(mc)) {
+            ApplicationConfig applicationConfig = ApplicationConfig.getInstance();
+            String ip = applicationConfig.getMulticastIp();
+            mc = new MulticastSocket(port);
+            group = InetAddress.getByName(ip);
+            mc.joinGroup(group);
+        }
+    }
+
+    private void send(String request, Integer port) {
+        try {
+            byte[] buffer = request.getBytes();
             DatagramPacket dp = new DatagramPacket(buffer, buffer.length, group, port);
             mc.send(dp);
             Arrays.fill(buffer, (byte) 0);
         } catch (Exception e) {
-            log.warn("autumn-multicast-registry receive exception: ", e);
+            log.warn("autumn-multicast-registry send exception: ", e);
         }
+    }
+
+    /**
+     * heartbeat re-register every 5 seconds, keep live instances fresh,
+     * expired instance will be removed by checkHealth after 10 seconds silence.
+     */
+    private void startHeartbeat(Integer port, ProviderConfig config) {
+        if(!heartbeatStarted.compareAndSet(false, true)) {
+            return;
+        }
+        Runnable runnable = () -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(HEARTBEAT_INTERVAL_MILLIS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+                String registryRequest = ConverterUtil.registryRequest(config);
+                send(registryRequest, port);
+            }
+        };
+        Thread thread = new Thread(runnable, "autumn-multicast-heartbeat");
+        thread.setDaemon(true);
+        thread.start();
+        log.info("autumn-multicast-heartbeat begin, interval:{}", HEARTBEAT_INTERVAL_MILLIS);
     }
 }
