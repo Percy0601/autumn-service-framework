@@ -1,6 +1,6 @@
 # Autumn Framework 使用说明文档
 
-> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 21+ ｜ 更新日期：2026-11-03
+> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 21+ ｜ 更新日期：2026-11-04
 
 本手册覆盖 Autumn Framework（秋实框架）的接入、运行机制与全部配置项，包含：
 
@@ -37,10 +37,12 @@ Autumn Framework 是一个基于 **Apache Thrift** 的服务治理框架，定�
 | --- | --- | --- |
 | `autumn-api` | `com.micro-app:autumn-api` | 注解、配置类、扩展点、工具类、控制面 Thrift 定义 |
 | `autumn-compiler` | `com.micro-app:autumn-compiler` | JSR-269 注解处理器 + FreeMarker 模板（编译期生成代码） |
-| `autumn-core` | `com.micro-app:autumn-core` | 运行时核心：`AutumnBootstrap`、Provider/Consumer、连接池、多播注册中心、控制面实现 |
-| `autumn-registry-consul` | `com.micro-app:autumn-registry-consul` | Consul 注册中心实现 |
+| `autumn-core` | `com.micro-app:autumn-core` | 运行时核心：`AutumnBootstrap`、Provider/Consumer、连接池、控制面实现 |
+| `autumn-registry-extension` | `com.micro-app:autumn-registry-extension` | 注册中心适配层：基于 `autumn-cloud-extension` 的 `ServiceRegistryClient`/`ServiceDiscoveryClient` 实现 `Registry`/`Discovery` SPI，支持 multicast / consul / nacos |
 | `autumn-spring-boot-starter` | `com.micro-app:autumn-spring-boot-starter` | Spring Boot 自动装配 |
 | `autumn-sample-api` | `com.micro-app:autumn-sample-api` | 示例 Thrift 接口 jar（`SomeService`） |
+
+> 旧的 `autumn-registry-consul` 模块与 `autumn-core` 中的 `MulticastRegistry` 自研实现已删除，注册发现统一收敛到 [autumn-cloud-extension](https://github.com/Percy0601/autumn-cloud-extension)（纯 Java、零 Spring 依赖、直连 HTTP/组播实现，GraalVM Native 友好）。
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -52,7 +54,8 @@ Autumn Framework 是一个基于 **Apache Thrift** 的服务治理框架，定�
 │  控制面  Registry(注册) · Discovery(发现) · AutumnPool(连接池)  │
 │          · 心跳/过期/健康检查 · 控制面API(devops)               │
 ├──────────────────────────────────────────────────────────────┤
-│  注册中心实现  MulticastRegistry(默认) · ConsulRegistry         │
+│  注册中心适配  autumn-registry-extension (SPI: Registry/Discovery)  │
+│  后端  multicast(默认) · consul · nacos  ← autumn-cloud-extension   │
 ├──────────────────────────────────────────────────────────────┤
 │  数据面  Apache Thrift (TSocket + TFramedTransport +          │
 │          TBinaryProtocol + TMultiplexedProtocol)              │
@@ -239,23 +242,24 @@ public class ConsumerMain {
 - `refer`：注册中心里的服务名，缺省用接口名
 - `ipPort`：非空时走 **DIRECT 直连**（`ip:port`），跳过注册中心
 
-### 4.2 三种注册中心模式（registry-type）
+### 4.2 四种注册中心模式（registry-type）
 
-| 值 | 注册实现 | 发现实现 | 适用场景 |
-| --- | --- | --- | --- |
-| `multicast`（默认） | `MulticastRegistry` | `MulticastDiscovery` | 局域网 / 单机联调，无需外部依赖 |
-| `consul` | `ConsulRegistry` | `ConsulDiscovery` | 多机 / 生产，需要引入 `autumn-registry-consul` |
-| `direct` | — | 直连 `ReferenceConfig.instances` | 单点直连，`@Reference(ipPort)` |
+| 值 | 后端 | 适用场景 |
+| --- | --- | --- |
+| `multicast`（默认） | `MulticastBackend`（extension 组播） | 局域网 / 单机联调，无需外部依赖 |
+| `consul` | `ConsulBackend`（extension HTTP 直连 Agent） | 多机 / 生产，TTL 健康检查 + 自动续约 |
+| `nacos` | `NacosBackend`（extension OpenAPI 直连） | 多机 / 生产，临时实例心跳保活 |
+| `direct` | —（不注册） | 直连 `ReferenceConfig.instances` / `@Reference(ipPort)` |
 
-> 注册中心实现通过 SPI（`META-INF/services/com.microapp.autumn.api.Registry` / `Discovery`）加载，多实现并存时取 ServiceLoader 返回的第一个。
+> 注册中心实现通过 SPI（`META-INF/services/com.microapp.autumn.api.Registry` / `Discovery`，由 `autumn-registry-extension` 提供）加载，`RegistryBackends` 按 `application.registry-type` 选择后端，进程内单例。三种后端均由 `autumn-cloud-extension-common` 提供，零 SDK 依赖（Consul/Nacos 走原生 HTTP API），GraalVM Native Image 友好。
 
 ### 4.3 生命周期
 
 `AutumnBootstrap.serve()` 按序执行：
 
 1. 启动 Thrift Provider 服务端（`TThreadedSelectorServer` + Worker 线程池）
-2. 注册自己到注册中心（multicast 报文 / consul agent）
-3. 启动发现：订阅 watch 的服务（多播监听 / consul 轮询）
+2. 注册自己到注册中心（multicast 广播 / consul TTL / nacos 心跳）
+3. 启动发现：订阅 watch 的服务（组播监听 / 注册中心轮询）
 4. 启动健康检查与实例过期清理
 5. 注册 JVM ShutdownHook（注销注册中心实例）
 
@@ -333,9 +337,12 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | 原生配置项 | Spring Boot 配置项 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `application.name` / `spring.application.name` | `autumn.name` | 空 | 应用名，注册中心服务名 |
-| `application.registry-type` | `autumn.registry-type` | `multicast` | 注册中心类型：`multicast` / `consul` / `direct` |
+| `application.registry-type` | `autumn.registry-type` | `multicast` | 注册中心类型：`multicast` / `consul` / `nacos` / `direct` |
 | `application.multicast.ip` | `autumn.multicast.ip` | `224.0.0.1` | 多播组播地址 |
 | `application.multicast.port` | `autumn.multicast.port` | `5555` | 多播端口 |
+| `application.multicast.network-interface` | `autumn.multicast.network-interface` | 自动选择 | 多播绑定的网卡名（多网卡环境显式指定） |
+| `application.traffic` | `autumn.traffic` | 空 | 泳道标识，写入实例元数据 `traffic`，用于灰度/泳道路由 |
+| `registry.discovery-interval` | `autumn.discovery-interval` | `5000` | 发现轮询间隔（毫秒，consul/nacos 后端） |
 
 #### Provider 级（原生前缀 `provider.*`，Spring Boot 前缀 `autumn.provider.*`）
 
@@ -359,20 +366,24 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | `consul.register` | `autumn.consul.register` | `true` | 是否注册到 Consul |
 | `consul.discovery` | `autumn.consul.discovery` | `true` | 是否启用 Consul 发现 |
 | `consul.instance-id` | `autumn.consul.instance-id` | `{name}:{ip}:{port}` | 实例 ID |
-| `consul.health-check-interval` | `autumn.consul.health-check-interval` | `10` | 健康检查间隔（秒，注册时写入 TCP Check） |
+| `consul.health-check-interval` | `autumn.consul.health-check-interval` | `10` | TTL 健康检查周期（秒，自动按 TTL/3 续约） |
 | `consul.host` | `autumn.consul.host` | `127.0.0.1` | Consul Agent 地址 |
 | `consul.port` | `autumn.consul.port` | `8500` | Consul Agent HTTP 端口 |
-| `consul.namespace` | `autumn.consul.namespace` | 空 | Consul Namespace（通过 `X-Consul-Namespace` 请求头透传） |
+| `consul.scheme` | `autumn.consul.scheme` | `http` | `http` / `https` |
+| `consul.token` | `autumn.consul.token` | 空 | ACL Token（`X-Consul-Token` 请求头） |
+| `consul.namespace` | `autumn.consul.namespace` | 空 | Consul Enterprise Namespace（`X-Consul-Namespace` 请求头，社区版忽略） |
 
-> 使用 Consul 需额外引入：
+#### Nacos 级（原生前缀 `nacos.*`，Spring Boot 前缀 `autumn.nacos.*`）
 
-```xml
-<dependency>
-    <groupId>com.micro-app</groupId>
-    <artifactId>autumn-registry-consul</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
-</dependency>
-```
+| 原生配置项 | Spring Boot 配置项 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `nacos.server-addr` | `autumn.nacos.server-addr` | `127.0.0.1:8848` | Nacos OpenAPI 地址 |
+| `nacos.namespace` | `autumn.nacos.namespace` | 空（public） | 命名空间 ID |
+| `nacos.group` | `autumn.nacos.group` | `DEFAULT_GROUP` | 分组名 |
+| `nacos.access-token` | `autumn.nacos.access-token` | 空 | 鉴权 Token |
+| `nacos.beat-interval` | `autumn.nacos.beat-interval` | `5000` | 临时实例心跳间隔（毫秒） |
+
+> `autumn-registry-extension` 已随 starter 传递引入（`autumn-cloud-extension-common`），选择 consul / nacos 后端**无需**额外依赖。
 
 #### 编程配置（`ReferenceConfig`）
 
@@ -380,7 +391,7 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | --- | --- | --- |
 | `setName(name)` | — | 引用服务名（注册中心服务名） |
 | `setInterfaceClass(Iface/Client)` | — | 接口类（thrift 生成的 Client 或 Iface） |
-| `setRegistryTypeEnum(...)` | — | `MULTICAST` / `CONSUL` / `DIRECT` |
+| `setRegistryTypeEnum(...)` | — | `MULTICAST` / `CONSUL` / `NACOS` / `DIRECT` |
 | `setInstances(List<ConsumerConfig>)` | — | 直连实例列表（DIRECT 模式） |
 | `setPoolTimeout(ms)` | `1000` | 连接池借用超时（Spring Boot 注入默认 `10000`） |
 | `setSocketTimeout(ms)` | — | Socket 读超时（Spring Boot 注入默认 `3000`） |
@@ -431,6 +442,16 @@ autumn.consul.port=8500
 autumn.provider.port=30880
 ```
 
+**Nacos 模式 Provider（`application.properties`）**
+
+```properties
+spring.application.name=training-nacos
+autumn.name=training-nacos
+autumn.registry-type=nacos
+autumn.nacos.server-addr=127.0.0.1:8848
+autumn.provider.port=30880
+```
+
 **原生 API 配置（`application.properties`）**
 
 ```properties
@@ -444,28 +465,34 @@ provider.port=30880
 
 ## 6. 注册中心详解
 
+三种后端均由 `autumn-registry-extension` 适配 `autumn-cloud-extension` 实现，注册时实例元数据统一携带 `protocol=thrift`、`application`、`traffic`（泳道标识），发现侧通过 `ExtensionDiscovery` 定时刷新（间隔 `registry.discovery-interval`，默认 5s）并同步连接池。
+
 ### 6.1 多播注册中心（默认）
 
-- 组播地址 `224.0.0.1:5555`，无外部依赖，单机/局域网联调开箱即用。
-- **报文格式**：
-  - 注册：`registry://{appName}?ip={ip}&port={port}&references={a,b,c}`
-  - 订阅：`subscribe://{appName}`
-  - 退订：`unsubscribe://{appName}`
-- **心跳**：每 5s 重发注册报文，续期实例。
-- **过期**：实例 10s 未续期则标记不可用；`ConsumerConfig.version` 累计 3 个版本未更新则删除实例。
-- **健康检查**：每 5s 轮询已连接实例，TCP 连接失败累计 `checkFail`，超限则移除。
-- **边界**：多播受限于同一网段/广播域，跨网段请使用 Consul。
+- 组播地址 `224.0.0.1:5555`，纯 JDK `DatagramChannel` 实现，无外部依赖，单机/局域网联调开箱即用。
+- **注册/心跳**：启动时广播实例信息（JSON 编码），此后周期性重发续期；进程退出时广播 bye 报文触发对端即时摘除。
+- **过期**：实例超过有效期未续期即从本地缓存移除。
+- **平台差异**：Windows 上 socket 绑定通配地址、其他平台绑定组播地址（BSD 语义下同主机多进程共享组播端口）。
+- **边界**：多播受限于同一网段/广播域，跨网段请使用 Consul / Nacos。
 
 ### 6.2 Consul 注册中心
 
-引入 `autumn-registry-consul` 并将 `registry-type` 设为 `consul` 后：
+`registry-type=consul` 后（依赖随 starter 传递，无需额外引入）：
 
-- **注册**：`PUT /v1/agent/service/register`，请求体含 TCP 健康检查（`Check.TCP = {ip}:{port}`，Interval 10s，Timeout 5s，`DeregisterCriticalServiceAfter` 10m），`replace-existing-check=true`。
-- **注销**：JVM ShutdownHook 调 `DELETE /v1/agent/service/deregister/{instanceId}`。
-- **发现**：`GET /v1/health/service/{name}?passing=true` 每 5s 轮询一次，只保留通过健康检查的实例到本地缓存。
-- **健康检查**：由 Consul Agent 承担 TCP 检查，`passing=true` 过滤天然保证可用性，本地无需二次轮询。
+- **注册**：`PUT /v1/agent/service/register`，注册 TTL Check（`Check.TTL = {health-check-interval}s`，`DeregisterCriticalServiceAfter` 为 TTL 的 3 倍），客户端自动按 TTL/3 续约（`PUT /v1/agent/check/pass/service:{id}`）。
+- **注销**：JVM ShutdownHook 调 `PUT /v1/agent/service/deregister/{instanceId}`。
+- **发现**：`GET /v1/health/service/{name}?passing=true` 按 `discovery-interval` 轮询，只保留 passing 实例。
+- **鉴权**：`consul.token` → `X-Consul-Token`；`consul.namespace` → `X-Consul-Namespace`（Enterprise）；`consul.scheme` 支持 https。
 
 > 提前启动本地 Consul：`consul agent -dev`（默认 127.0.0.1:8500）。
+
+### 6.3 Nacos 注册中心
+
+`registry-type=nacos` 后：
+
+- **注册**：`POST /nacos/v1/ns/instance`（临时实例），客户端按 `nacos.beat-interval` 发送心跳保活。
+- **发现**：`GET /nacos/v1/ns/instance/list` 轮询实例列表，标记非健康实例自动摘除。
+- **隔离**：`nacos.namespace`（命名空间 ID）+ `nacos.group` 双维度隔离；开启鉴权时配置 `nacos.access-token`。
 
 ## 7. 连接池与调用模型
 
@@ -561,16 +588,23 @@ mvn test
 
 **Q5：能否用 Native Image？**
 
-框架调用面已零反射（JSR-269 生成代码 + SPI），但 Native Image 全链路（含 Spring AOT、反射配置收集）仍在验证中，暂不用于生产。
+框架调用面已零反射（JSR-269 生成代码 + SPI），注册发现实现零 SDK 依赖（原生 HTTP / JDK 组播），`autumn-registry-extension` 已内置 `META-INF/native-image` 资源声明；Native Image 全链路（含 Spring AOT）仍在验证中，暂不用于生产。
+
+**Q6：切换 / 删除注册中心实现后行为没变？**
+
+SPI 文件来自 `META-INF/services`，删除或变更后**必须 `mvn clean`** 再构建：`target/classes` 里残留的旧 SPI 文件仍会被 `ServiceLoader` 装配，导致旧实现继续生效。这也是本框架推荐统一使用 `mvn clean install` 的原因。
+
+**Q7：Windows 上组播报 `Cannot assign requested address`？**
+
+旧版自研组播实现存在该问题，现已由 `autumn-cloud-extension` 修复（Windows 绑定通配地址）。若仍出现，请确认 `autumn-cloud-extension-common` 版本 ≥ 1.0.0-SNAPSHOT（2026-11-04 之后构建）。
 
 ## 12. 当前状态与 Roadmap
 
 ### 已完成
 
 - [x] Spring Boot Starter 接入（自动装配 / 注解处理 / 生命周期）
-- [x] Consul 注册中心（注册 / 注销 / 发现 / 健康过滤）
+- [x] 注册发现收敛至 `autumn-cloud-extension`（multicast / consul / nacos 三后端，旧自研实现已删除）
 - [x] JSR-269 编译期代码生成链路（`_XxxServiceRegister` / `_XxxProxy` + SPI）
-- [x] 多播注册中心（心跳 / 过期 / 健康检查 / 发布订阅）
 - [x] 连接池（ConcurrentBag）与控制面 API
 
 ### 规划中

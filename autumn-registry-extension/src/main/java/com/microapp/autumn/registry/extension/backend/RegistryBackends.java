@@ -74,6 +74,7 @@ public final class RegistryBackends {
                     Objects.isNull(config.getConsulPort()) ? 8500 : config.getConsulPort(),
                     config.getConsulScheme(),
                     config.getConsulToken(),
+                    config.getConsulNamespace(),
                     Objects.isNull(config.getConsulHealthCheckInterval()) ? 10 : config.getConsulHealthCheckInterval()));
             case "nacos" -> new NacosBackend(new NacosSettings(
                     config.getNacosServerAddr(),
