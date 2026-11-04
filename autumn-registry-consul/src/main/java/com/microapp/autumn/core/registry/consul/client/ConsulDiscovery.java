@@ -28,7 +28,11 @@ import lombok.extern.slf4j.Slf4j;
  *
  * @author: baoxin.zhao
  * @date: 2024/10/28
+ * @deprecated 自研 consul 发现实现已废弃，改用 {@code autumn-cloud-extension} 的
+ * {@code com.autumn.cloud.extension.core.api.ServiceDiscoveryClient}（见模块 {@code autumn-registry-extension}）。
+ * 该模块不再装配 SPI，后续版本整体删除。
  */
+@Deprecated(since = "1.0.0", forRemoval = true)
 @Slf4j
 public class ConsulDiscovery implements Discovery {
 

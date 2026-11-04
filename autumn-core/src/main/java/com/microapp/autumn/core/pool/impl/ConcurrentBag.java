@@ -90,7 +90,7 @@ public class ConcurrentBag implements AutoCloseable {
             instances = config.getInstances();
         } else {
             Discovery discovery = SpiUtil.load(Discovery.class);
-            instances = discovery.getInstances(config.getName());
+            instances = Objects.isNull(discovery) ? null : discovery.getInstances(config.getName());
         }
         config.setInstances(instances);
         List<ConsumerConfig> consumerConfigs = config.getInstances();

@@ -49,18 +49,29 @@ public class AutumnBootstrap {
         log.info("autumn provider finish");
 
         Registry registry = SpiUtil.load(Registry.class);
-        registry.register();
-        log.info("autumn registry finish");
+        if (Objects.nonNull(registry)) {
+            registry.register();
+            log.info("autumn registry finish");
+        } else {
+            log.warn("autumn registry spi not found, add autumn-registry-extension dependency to enable registry.");
+        }
 
         Discovery discovery = SpiUtil.load(Discovery.class);
-        discovery.discovery();
-        discovery.checkHealth();
+        if (Objects.nonNull(discovery)) {
+            discovery.discovery();
+            discovery.checkHealth();
+        } else {
+            log.warn("autumn discovery spi not found, add autumn-registry-extension dependency to enable discovery.");
+        }
         shutdownHook();
     }
 
     private void shutdownHook() {
         Runnable shutdownHook = () -> {
-            SpiUtil.load(Registry.class).shutdownHook();
+            Registry registry = SpiUtil.load(Registry.class);
+            if (Objects.nonNull(registry)) {
+                registry.shutdownHook();
+            }
         };
         Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook));
     }

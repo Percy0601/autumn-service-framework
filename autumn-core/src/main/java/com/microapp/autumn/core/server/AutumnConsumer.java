@@ -1,5 +1,7 @@
 package com.microapp.autumn.core.server;
 
+import java.util.Objects;
+
 import org.apache.thrift.TServiceClient;
 
 import com.microapp.autumn.api.Discovery;
@@ -29,7 +31,10 @@ public class AutumnConsumer {
 
     public <T extends TServiceClient> void reference(ReferenceConfig<T> referenceConfig) {
         AutumnPool.getInstance().referenceConfig(referenceConfig);
-        SpiUtil.load(Discovery.class).watch(referenceConfig.getName());
+        Discovery discovery = SpiUtil.load(Discovery.class);
+        if (Objects.nonNull(discovery)) {
+            discovery.watch(referenceConfig.getName());
+        }
     }
 
     public static void requite(ConcurrentBagEntry bagEntry) {

@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 
 @Slf4j
+@org.junit.jupiter.api.Disabled("deprecated module: replaced by autumn-registry-extension, needs a live consul agent")
 public class ConsulClientTest {
 
     @Test

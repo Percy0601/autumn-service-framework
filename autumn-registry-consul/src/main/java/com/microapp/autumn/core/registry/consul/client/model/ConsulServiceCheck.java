@@ -8,6 +8,7 @@ import lombok.Data;
  * @author: baoxin.zhao
  * @date: 2024/11/5
  */
+@Deprecated(since = "1.0.0", forRemoval = true)
 @Data
 public class ConsulServiceCheck {
     @JsonProperty("DeregisterCriticalServiceAfter")

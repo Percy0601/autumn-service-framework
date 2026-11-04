@@ -11,6 +11,7 @@
     <packaging>jar</packaging>
 
     <name>autumn-registry-consul</name>
+    <description>DEPRECATED: replaced by autumn-registry-extension (autumn-cloud-extension). Will be removed in a future release.</description>
     <url>http://maven.apache.org</url>
 
     <properties>

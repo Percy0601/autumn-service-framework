@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import lombok.extern.slf4j.Slf4j;
 
+@Deprecated(since = "1.0.0", forRemoval = true)
 @Slf4j
 public class JsonUtil {
     private static ObjectMapper objectMapper = new ObjectMapper();

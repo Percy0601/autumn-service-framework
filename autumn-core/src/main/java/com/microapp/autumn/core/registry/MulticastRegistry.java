@@ -31,7 +31,12 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * @author: baoxin.zhao
  * @date: 2024/10/28
+ * @deprecated 自研组播注册发现实现已废弃，注册发现统一由
+ * {@code autumn-cloud-extension} 提供（见模块 {@code autumn-registry-extension}，
+ * SPI 实现 {@code com.microapp.autumn.registry.extension.ExtensionRegistry/ExtensionDiscovery}）。
+ * 该实现不再装配，仅保留源码过渡，后续版本直接删除。
  */
+@Deprecated(since = "1.0.0", forRemoval = true)
 @Slf4j
 public class MulticastRegistry implements Registry, Discovery {
     private static volatile MulticastRegistry instance;

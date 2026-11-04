@@ -73,6 +73,12 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
         props.setProperty("application.registry-type", properties.getRegistryType());
         props.setProperty("application.multicast.ip", properties.getMulticastIp());
         props.setProperty("application.multicast.port", String.valueOf(properties.getMulticastPort()));
+        if (Objects.nonNull(properties.getDiscoveryInterval())) {
+            props.setProperty("registry.discovery-interval", String.valueOf(properties.getDiscoveryInterval()));
+        }
+        if (Objects.nonNull(properties.getTraffic()) && !properties.getTraffic().isBlank()) {
+            props.setProperty("application.traffic", properties.getTraffic());
+        }
         AutumnProperties.Provider provider = properties.getProvider();
         if (Objects.nonNull(provider)) {
             props.setProperty("provider.enabled", String.valueOf(provider.getEnabled()));
@@ -99,6 +105,16 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
             if (Objects.nonNull(consul.getNamespace())) {
                 props.setProperty("consul.namespace", consul.getNamespace());
             }
+        }
+        AutumnProperties.Nacos nacos = properties.getNacos();
+        if (Objects.nonNull(nacos)) {
+            props.setProperty("nacos.server-addr", nacos.getServerAddr());
+            props.setProperty("nacos.namespace", nacos.getNamespace());
+            props.setProperty("nacos.group", nacos.getGroup());
+            if (Objects.nonNull(nacos.getAccessToken())) {
+                props.setProperty("nacos.access-token", nacos.getAccessToken());
+            }
+            props.setProperty("nacos.beat-interval", String.valueOf(nacos.getBeatInterval()));
         }
         ApplicationConfig.getInstance().init(props);
         ProviderConfig.getInstance().init(props);
@@ -214,6 +230,8 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                     String registryType = ApplicationConfig.getInstance().getRegistryType();
                     if ("consul".equalsIgnoreCase(registryType)) {
                         config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
+                    } else if ("nacos".equalsIgnoreCase(registryType)) {
+                        config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
                     } else {
                         config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
                     }

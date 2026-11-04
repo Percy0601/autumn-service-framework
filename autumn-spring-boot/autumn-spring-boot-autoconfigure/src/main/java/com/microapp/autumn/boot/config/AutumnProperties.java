@@ -35,7 +35,7 @@ public class AutumnProperties {
     private String name;
 
     /**
-     * registry type: multicast / consul
+     * registry type: multicast / consul / nacos / direct
      */
     private String registryType = "multicast";
 
@@ -50,6 +50,16 @@ public class AutumnProperties {
     private Integer multicastPort = 5555;
 
     /**
+     * service discovery refresh interval, unit millisecond, default 5000
+     */
+    private Integer discoveryInterval = 5000;
+
+    /**
+     * instance traffic label, used for grey routing, empty means unlabeled
+     */
+    private String traffic;
+
+    /**
      * provider config
      */
     private Provider provider = new Provider();
@@ -58,6 +68,11 @@ public class AutumnProperties {
      * consul registry config
      */
     private Consul consul = new Consul();
+
+    /**
+     * nacos registry config
+     */
+    private Nacos nacos = new Nacos();
 
     @Data
     public static class Provider {
@@ -125,5 +140,29 @@ public class AutumnProperties {
          * consul namespace
          */
         private String namespace;
+    }
+
+    @Data
+    public static class Nacos {
+        /**
+         * nacos server address, default 127.0.0.1:8848
+         */
+        private String serverAddr = "127.0.0.1:8848";
+        /**
+         * nacos namespace, default public
+         */
+        private String namespace = "public";
+        /**
+         * nacos group, default DEFAULT
+         */
+        private String group = "DEFAULT";
+        /**
+         * nacos access token, optional
+         */
+        private String accessToken;
+        /**
+         * ephemeral instance beat interval, unit millisecond, default 5000
+         */
+        private Integer beatInterval = 5000;
     }
 }

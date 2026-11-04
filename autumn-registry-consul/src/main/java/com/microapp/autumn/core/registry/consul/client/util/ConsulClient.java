@@ -48,6 +48,7 @@ import lombok.extern.slf4j.Slf4j;
  * @author: baoxin.zhao
  * @date: 2024/5/12
  */
+@Deprecated(since = "1.0.0", forRemoval = true)
 @Slf4j
 public class ConsulClient {
     public static CloseableHttpClient httpClient;

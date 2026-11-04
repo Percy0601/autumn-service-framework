@@ -58,9 +58,49 @@ public class ApplicationConfig {
      */
     private Integer consulPort;
     /**
-     * consul namespace
+     * consul namespace, not supported by autumn-cloud-extension consul client yet
      */
     private String consulNamespace;
+    /**
+     * consul scheme, http or https, default http
+     */
+    private String consulScheme;
+    /**
+     * consul acl token, optional
+     */
+    private String consulToken;
+    /**
+     * nacos server address, default 127.0.0.1:8848
+     */
+    private String nacosServerAddr;
+    /**
+     * nacos namespace, default public
+     */
+    private String nacosNamespace;
+    /**
+     * nacos group, default DEFAULT
+     */
+    private String nacosGroup;
+    /**
+     * nacos access token, optional
+     */
+    private String nacosAccessToken;
+    /**
+     * nacos ephemeral instance beat interval, unit millisecond, default 5000
+     */
+    private Integer nacosBeatInterval;
+    /**
+     * service discovery refresh interval, unit millisecond, default 5000
+     */
+    private Integer registryDiscoveryInterval;
+    /**
+     * instance traffic label, used for grey routing
+     */
+    private String traffic;
+    /**
+     * multicast network interface, auto detect when empty
+     */
+    private String multicastNetworkInterface;
     public static ApplicationConfig getInstance() {
         if(Objects.isNull(instance)) {
             synchronized (ApplicationConfig.class) {
@@ -143,6 +183,40 @@ public class ApplicationConfig {
         this.consulPort = Integer.valueOf((Objects.isNull(consulPortValue) || consulPortValue.length() < 1) ? "8500" : consulPortValue);
 
         this.consulNamespace = properties.getProperty("consul.namespace");
+
+        String consulSchemeValue = properties.getProperty("consul.scheme");
+        this.consulScheme = (Objects.isNull(consulSchemeValue) || consulSchemeValue.length() < 1) ? "http" : consulSchemeValue;
+
+        this.consulToken = properties.getProperty("consul.token");
+
+        String nacosServerAddrValue = properties.getProperty("nacos.server-addr");
+        this.nacosServerAddr = (Objects.isNull(nacosServerAddrValue) || nacosServerAddrValue.length() < 1)
+                ? "127.0.0.1:8848" : nacosServerAddrValue;
+
+        String nacosNamespaceValue = properties.getProperty("nacos.namespace");
+        this.nacosNamespace = (Objects.isNull(nacosNamespaceValue) || nacosNamespaceValue.length() < 1)
+                ? "public" : nacosNamespaceValue;
+
+        String nacosGroupValue = properties.getProperty("nacos.group");
+        this.nacosGroup = (Objects.isNull(nacosGroupValue) || nacosGroupValue.length() < 1)
+                ? "DEFAULT" : nacosGroupValue;
+
+        this.nacosAccessToken = properties.getProperty("nacos.access-token");
+
+        String nacosBeatIntervalValue = properties.getProperty("nacos.beat-interval");
+        this.nacosBeatInterval = Integer.valueOf((Objects.isNull(nacosBeatIntervalValue) || nacosBeatIntervalValue.length() < 1)
+                ? "5000" : nacosBeatIntervalValue);
+
+        String discoveryIntervalValue = properties.getProperty("registry.discovery-interval");
+        this.registryDiscoveryInterval = Integer.valueOf((Objects.isNull(discoveryIntervalValue) || discoveryIntervalValue.length() < 1)
+                ? "5000" : discoveryIntervalValue);
+
+        String trafficValue = properties.getProperty("application.traffic");
+        this.traffic = (Objects.isNull(trafficValue) || trafficValue.length() < 1) ? null : trafficValue;
+
+        String multicastNetworkInterfaceValue = properties.getProperty("application.multicast.network-interface");
+        this.multicastNetworkInterface = (Objects.isNull(multicastNetworkInterfaceValue) || multicastNetworkInterfaceValue.length() < 1)
+                ? null : multicastNetworkInterfaceValue;
 
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
         String jvm = runtime.getVmName();

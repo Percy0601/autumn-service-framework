@@ -11,6 +11,7 @@ import lombok.Getter;
 @Getter
 public enum RegistryTypeEnum {
     CONSUL("consul", "consul registry discovery type!"),
+    NACOS("nacos", "nacos registry discovery type!"),
     MULTICAST("multicast", "multicast registry discovery type!"),
     DIRECT("direct", "direct ip:port registry discovery type!"),
     ;

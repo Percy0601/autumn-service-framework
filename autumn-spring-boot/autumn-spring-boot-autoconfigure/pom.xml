@@ -26,6 +26,10 @@
         </dependency>
         <dependency>
             <groupId>com.micro-app</groupId>
+            <artifactId>autumn-registry-extension</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.micro-app</groupId>
             <artifactId>autumn-compiler</artifactId>
             <scope>provided</scope>
         </dependency>

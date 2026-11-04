@@ -65,6 +65,10 @@ public class ConverterUtil {
     }
 
 
+    /**
+     * @deprecated 自研组播协议报文，随 {@code MulticastRegistry} 一起废弃
+     */
+    @Deprecated(since = "1.0.0", forRemoval = true)
     public static String shutdownRequest(ProviderConfig config) {
         String name = ApplicationConfig.getInstance().getName();
         String queryString = MulticastEventEnum.SHUTDOWN.getCode().concat("://")
@@ -94,6 +98,10 @@ public class ConverterUtil {
         return queryString;
     }
 
+    /**
+     * @deprecated 自研组播协议报文，随 {@code MulticastRegistry} 一起废弃
+     */
+    @Deprecated(since = "1.0.0", forRemoval = true)
     public static String registryRequest(ProviderConfig config) {
         String name = ApplicationConfig.getInstance().getName();
         String queryString = MulticastEventEnum.REGISTRY.getCode().concat("://")
@@ -122,6 +130,10 @@ public class ConverterUtil {
         return queryString;
     }
 
+    /**
+     * @deprecated 自研组播协议报文，随 {@code MulticastRegistry} 一起废弃
+     */
+    @Deprecated(since = "1.0.0", forRemoval = true)
     public static String subscribeRequest(ProviderConfig config) {
         String name = ApplicationConfig.getInstance().getName();
         String queryString = MulticastEventEnum.SUBSCRIBE.getCode().concat("://")
@@ -150,6 +162,10 @@ public class ConverterUtil {
         return queryString;
     }
 
+    /**
+     * @deprecated 自研组播协议报文解析，随 {@code MulticastRegistry} 一起废弃
+     */
+    @Deprecated(since = "1.0.0", forRemoval = true)
     public static ConsumerConfig queryStringToProvider(String url) {
         Map<String, String> mapping = getUrlParams(url);
         if(mapping.isEmpty()) {
