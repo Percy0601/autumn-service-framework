@@ -137,6 +137,14 @@ public class AutumnProperties {
          */
         private Integer port = 8500;
         /**
+         * consul scheme, http / https, default http
+         */
+        private String scheme = "http";
+        /**
+         * consul ACL token
+         */
+        private String token;
+        /**
          * consul namespace
          */
         private String namespace;

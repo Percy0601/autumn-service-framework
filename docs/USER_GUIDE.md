@@ -379,7 +379,7 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | --- | --- | --- | --- |
 | `nacos.server-addr` | `autumn.nacos.server-addr` | `127.0.0.1:8848` | Nacos OpenAPI 地址 |
 | `nacos.namespace` | `autumn.nacos.namespace` | 空（public） | 命名空间 ID |
-| `nacos.group` | `autumn.nacos.group` | `DEFAULT_GROUP` | 分组名 |
+| `nacos.group` | `autumn.nacos.group` | `DEFAULT` | 分组名；与其他标准 Nacos 客户端互通时按需设为 `DEFAULT_GROUP` |
 | `nacos.access-token` | `autumn.nacos.access-token` | 空 | 鉴权 Token |
 | `nacos.beat-interval` | `autumn.nacos.beat-interval` | `5000` | 临时实例心跳间隔（毫秒） |
 

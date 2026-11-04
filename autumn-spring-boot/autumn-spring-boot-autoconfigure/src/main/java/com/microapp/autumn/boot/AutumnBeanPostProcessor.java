@@ -99,6 +99,12 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
             props.setProperty("consul.health-check-interval", String.valueOf(consul.getHealthCheckInterval()));
             props.setProperty("consul.host", String.valueOf(consul.getHost()));
             props.setProperty("consul.port", String.valueOf(consul.getPort()));
+            if (Objects.nonNull(consul.getScheme())) {
+                props.setProperty("consul.scheme", consul.getScheme());
+            }
+            if (Objects.nonNull(consul.getToken())) {
+                props.setProperty("consul.token", consul.getToken());
+            }
             if (Objects.nonNull(consul.getInstanceId())) {
                 props.setProperty("consul.instance-id", consul.getInstanceId());
             }
