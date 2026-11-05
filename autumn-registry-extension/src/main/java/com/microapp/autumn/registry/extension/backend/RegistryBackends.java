@@ -1,5 +1,6 @@
 package com.microapp.autumn.registry.extension.backend;
 
+import java.net.NetworkInterface;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -8,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.microapp.autumn.api.config.ApplicationConfig;
+import com.microapp.autumn.api.util.CommonUtil;
 
 import com.autumn.cloud.extension.core.api.ServiceDiscoveryClient;
 import com.autumn.cloud.extension.core.api.ServiceRegistryClient;
@@ -83,12 +85,23 @@ public final class RegistryBackends {
                     config.getNacosAccessToken(),
                     Objects.isNull(config.getNacosBeatInterval()) ? 5000L : config.getNacosBeatInterval()));
             case "direct" -> new NoopBackend();
-            default -> new MulticastBackend(new MulticastConfig(
-                    config.getMulticastIp(),
-                    Objects.isNull(config.getMulticastPort()) ? 5555 : config.getMulticastPort(),
-                    1, 0, 0,
-                    config.getMulticastNetworkInterface()));
+            default -> new MulticastBackend(buildMulticastConfig(config));
         };
+    }
+
+    /**
+     * 未显式配置网卡时，与 {@link CommonUtil#getHostIpAddress()}（注册 IP 的来源）
+     * 共用同一套网卡判定，避免"注册 IP 在 A 网卡、组播出口在 B 网卡"导致跨机发现不通。
+     */
+    private static MulticastConfig buildMulticastConfig(ApplicationConfig config) {
+        String networkInterface = config.getMulticastNetworkInterface();
+        if (Objects.isNull(networkInterface) || networkInterface.isBlank()) {
+            NetworkInterface netIf = CommonUtil.getNetIf();
+            networkInterface = Objects.isNull(netIf) ? null : netIf.getName();
+        }
+        return new MulticastConfig(config.getMulticastIp(),
+                Objects.isNull(config.getMulticastPort()) ? 5555 : config.getMulticastPort(),
+                1, 0, 0, networkInterface);
     }
 
     /**

@@ -130,11 +130,17 @@ Spring Boot 场景统一使用 `autumn.*` 前缀（由 `AutumnProperties` 绑定
 
 ## 构建
 
-JDK 21+，Maven 3.8+：
+JDK 25+，Maven 3.9+：
 
 ```bash
 mvn clean install          # 全量构建 + 测试
 mvn -DskipTests clean install
+```
+
+GraalVM Native（需 GraalVM JDK 25 + native-image）：
+
+```bash
+./scripts/build-native.sh
 ```
 
 > 涉及 SPI（`META-INF/services`）变更后务必 `clean`，避免 `target/classes` 残留旧装配文件。

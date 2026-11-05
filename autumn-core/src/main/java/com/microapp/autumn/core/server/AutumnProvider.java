@@ -99,8 +99,10 @@ public class AutumnProvider {
 
         TNonblockingServerTransport serverTransport = null;
         try {
-            // 构造时完成 bind，端口占用会在这里抛异常
-            serverTransport = new TNonblockingServerSocket(providerConfig.getPort());
+            // 构造时完成 bind，端口占用会在这里抛异常；
+            // provider.timeout（秒）用于已 accept 客户端连接的读写超时，避免慢/僵死连接长期占用服务端资源
+            int clientTimeoutMillis = clientTimeoutMillis(providerConfig);
+            serverTransport = new TNonblockingServerSocket(providerConfig.getPort(), clientTimeoutMillis);
 
             ThreadUtil singleton = ThreadUtil.getInstance();
             ExecutorService executorService = singleton.getWorkerExecutor(providerConfig);
@@ -139,7 +141,8 @@ public class AutumnProvider {
 
             this.server = tServer;
             this.started = true;
-            log.info("autumn server running, port:{}, services:{}", providerConfig.getPort(), services.keySet());
+            log.info("autumn server running, port:{}, clientTimeout:{}ms, services:{}",
+                    providerConfig.getPort(), clientTimeoutMillis, services.keySet());
 
             if (independentControl) {
                 // 控制面独立端口：仅承载 ControlApi，与业务流量隔离
@@ -191,7 +194,7 @@ public class AutumnProvider {
             } else {
                 bindAddr = new InetSocketAddress(controlPort);
             }
-            controlTransport = new TNonblockingServerSocket(bindAddr);
+            controlTransport = new TNonblockingServerSocket(bindAddr, clientTimeoutMillis(providerConfig));
             TMultiplexedProcessor controlProcessor = new TMultiplexedProcessor();
             controlProcessor.registerProcessor(ControlApi.Iface.class.getName(),
                     new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl()));
@@ -217,6 +220,18 @@ public class AutumnProvider {
             closeQuietly(controlTransport);
             log.error("autumn control server start failed, port:{}", controlPort, e);
         }
+    }
+
+    /**
+     * provider.timeout（秒）转换为 thrift 客户端连接超时（毫秒）。
+     * 未配置或 <=0 时返回 0（不设超时），保持旧行为。
+     */
+    private static int clientTimeoutMillis(ProviderConfig config) {
+        Integer timeout = config.getTimeout();
+        if (timeout == null || timeout <= 0) {
+            return 0;
+        }
+        return (int) Math.min(timeout * 1000L, Integer.MAX_VALUE);
     }
 
     private void closeQuietly(TNonblockingServerTransport serverTransport) {

@@ -21,7 +21,9 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
+import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
+import javax.tools.StandardLocation;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,13 +33,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @SupportedAnnotationTypes(value = {"com.microapp.autumn.api.annotation.Reference"})
-@SupportedSourceVersion(value = SourceVersion.RELEASE_21)
+@SupportedSourceVersion(value = SourceVersion.RELEASE_25)
 public class ReferenceServiceProcessor extends AbstractProcessor {
     private static final String IFACE_SUFFIX = ".Iface";
     private static final String PROXY_SUFFIX = "Proxy";
+    private static final String NATIVE_IMAGE_LOCATION = "META-INF/native-image/com.microapp.autumn";
     private Logger log = LoggerFactory.getLogger(ReferenceServiceProcessor.class);
     private Map<String, ReferenceEntry> mapping = new ConcurrentHashMap<>();
     private final Set<String> written = ConcurrentHashMap.newKeySet();
+    private final Set<String> generatedProxies = ConcurrentHashMap.newKeySet();
+    // per-processor metadata, isolated from other processors / compilation units
+    private final MetaHolder metaHolder = new MetaHolder();
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -78,7 +84,7 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
         entry.setReferApplication(reference.refer());
         entry.setMethodElements(resolveMethods((DeclaredType) interfaceType));
         mapping.put(ifaceName, entry);
-        MetaHolder.addReferService(ifaceName, entry);
+        metaHolder.addReferService(ifaceName, entry);
         log.info("autumn reference collect entry:{}, refer:{}", ifaceName, reference.refer());
     }
 
@@ -116,7 +122,7 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
     }
 
     private void writePending() {
-        ConcurrentHashMap<String, ReferenceEntry> referenceEntries = MetaHolder.getReferService();
+        ConcurrentHashMap<String, ReferenceEntry> referenceEntries = metaHolder.getReferService();
         referenceEntries.forEach((ifaceName, entry) -> {
             if (written.contains(ifaceName)) {
                 return;
@@ -133,11 +139,41 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
                             entry.getReferApplication(), entry, sourceWriter);
                 }
                 written.add(ifaceName);
+                generatedProxies.add(generatedFullName);
                 log.info("autumn reference generate proxy class:{}, refer:{}", generatedFullName, entry.getReferApplication());
             } catch (Exception e) {
                 log.warn("handleWrite Proxy Exception:", e);
             }
         });
+        writeReflectConfig();
+    }
+
+    /**
+     * 生成代理通过 Class.forName + getConstructor(String) 加载，native-image 闭世界分析看不到，
+     * 因此把生成类的具体名字写进 reflect-config（编译期已知，无需运行时通配）。
+     */
+    private void writeReflectConfig() {
+        if (generatedProxies.isEmpty()) {
+            return;
+        }
+        try {
+            FileObject reflectFile = processingEnv.getFiler().createResource(StandardLocation.CLASS_OUTPUT, "",
+                    NATIVE_IMAGE_LOCATION + "/autumn-reference-reflect-config.json");
+            try (java.io.Writer writer = reflectFile.openWriter()) {
+                StringBuilder json = new StringBuilder("[\n");
+                int index = 0;
+                for (String name : generatedProxies) {
+                    if (index++ > 0) {
+                        json.append(",\n");
+                    }
+                    json.append("  {\"name\":\"").append(name).append("\",\"allPublicConstructors\":true}");
+                }
+                writer.write(json.append("\n]\n").toString());
+            }
+        } catch (Exception e) {
+            // 多 round 下同名资源已存在时 Filer 会拒绝重建，首轮写入已覆盖绝大多数场景
+            log.debug("autumn reference reflect-config write skipped:{}", e.getMessage());
+        }
     }
 
 }

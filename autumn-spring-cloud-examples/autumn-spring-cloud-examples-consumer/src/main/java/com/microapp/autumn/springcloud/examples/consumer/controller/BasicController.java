@@ -40,12 +40,12 @@ public class BasicController {
     @GetMapping("/get-user")
     public UserDto getUser(@RequestParam Long id) {
         log.info("===user-client===: {}", (userClient == null));
-        return userClient.getById(id).block(Duration.ofSeconds(1L));
+        return userClient.getById(id).block(Duration.ofSeconds(5L));
     }
 
     @PostMapping("/create-user")
     public UserDto createUser(@RequestBody UserDto dto) {
-        userClient.create(dto).block(Duration.ofSeconds(1L));
+        userClient.create(dto).block(Duration.ofSeconds(5L));
         return dto;
     }
 }

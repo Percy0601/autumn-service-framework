@@ -16,7 +16,7 @@
     <description>Spring Cloud provider：注册到 Consul，暴露 UserClient HTTP 服务</description>
 
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <start-class>com.microapp.autumn.springcloud.examples.provider.ProviderBootstrap</start-class>
     </properties>
 

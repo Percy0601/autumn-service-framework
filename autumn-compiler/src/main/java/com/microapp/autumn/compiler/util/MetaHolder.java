@@ -10,45 +10,32 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * compile-time metadata holder, shared between processors and freemarker templates.
+ * Compile-time metadata holder, shared between a processor and its freemarker templates.
+ *
+ * <p>Instance scoped on purpose: each annotation processor owns one holder, so two
+ * processors (or two compilation units in the same javac process) can never leak
+ * entries into each other. The old static maps made {@code @Export}/{@code @Reference}
+ * metadata survive across independent compilations.</p>
  */
 @Slf4j
 public class MetaHolder {
-    private static Integer serverPort = 8761;
-    private static ConcurrentHashMap<String, ExportEntry> exportEntries = new ConcurrentHashMap<>();
-    private static ConcurrentHashMap<String, ReferenceEntry> referenceServices = new ConcurrentHashMap<>();
 
-    private MetaHolder() {
+    private final ConcurrentHashMap<String, ExportEntry> exportEntries = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReferenceEntry> referenceServices = new ConcurrentHashMap<>();
 
+    public void addExportEntry(ExportEntry entry) {
+        exportEntries.putIfAbsent(entry.getImplementName(), entry);
     }
 
-    public static void setServerPort(Integer _serverPort) {
-        serverPort = _serverPort;
-    }
-
-    public static Integer getServerPort() {
-        return serverPort;
-    }
-
-    public static void addExportEntry(ExportEntry entry) {
-        if (exportEntries.containsKey(entry.getImplementName())) {
-            return;
-        }
-        exportEntries.put(entry.getImplementName(), entry);
-    }
-
-    public static List<ExportEntry> getExportEntries() {
+    public List<ExportEntry> getExportEntries() {
         return new ArrayList<>(exportEntries.values());
     }
 
-    public static void addReferService(String referService, ReferenceEntry referServiceEntry) {
-        if (referenceServices.containsKey(referService)) {
-            return;
-        }
-        referenceServices.put(referService, referServiceEntry);
+    public void addReferService(String referService, ReferenceEntry referServiceEntry) {
+        referenceServices.putIfAbsent(referService, referServiceEntry);
     }
 
-    public static ConcurrentHashMap<String, ReferenceEntry> getReferService() {
+    public ConcurrentHashMap<String, ReferenceEntry> getReferService() {
         return referenceServices;
     }
 

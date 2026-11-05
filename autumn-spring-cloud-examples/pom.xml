@@ -23,7 +23,7 @@
     </modules>
 
     <properties>
-        <!-- Spring Cloud Northfields（适配 Spring Boot 3.5.x / JDK 21+） -->
+        <!-- Spring Cloud Northfields（适配 Spring Boot 3.5.x / JDK 25） -->
         <spring-cloud.version>2025.0.3</spring-cloud.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

@@ -16,6 +16,7 @@ import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.layered.TFramedTransport;
 
 import com.microapp.autumn.api.Discovery;
+import com.microapp.autumn.api.config.ApplicationConfig;
 import com.microapp.autumn.api.config.ConsumerConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.api.enums.RegistryTypeEnum;
@@ -193,14 +194,40 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     private List<ConsumerConfig> resolveInstances() {
+        List<ConsumerConfig> instances;
         if (RegistryTypeEnum.DIRECT == config.getRegistryTypeEnum()) {
-            return config.getInstances();
+            instances = config.getInstances();
+        } else {
+            Discovery discovery = SpiUtil.load(Discovery.class);
+            List<ConsumerConfig> found = Objects.isNull(discovery)
+                    ? null : discovery.getInstances(config.getName());
+            instances = filterByTraffic(found);
         }
-        Discovery discovery = SpiUtil.load(Discovery.class);
-        List<ConsumerConfig> instances = Objects.isNull(discovery)
-                ? null : discovery.getInstances(config.getName());
         config.setInstances(instances);
         return instances;
+    }
+
+    /**
+     * traffic 泳道路由：消费方声明了 application.traffic 时只保留 label 相同的实例，
+     * 未声明时保留全部。泳道内无实例时回退全量，避免错误配置让服务整体不可用。
+     */
+    private List<ConsumerConfig> filterByTraffic(List<ConsumerConfig> found) {
+        if (Objects.isNull(found) || found.isEmpty()) {
+            return found;
+        }
+        String traffic = ApplicationConfig.getInstance().getTraffic();
+        if (Objects.isNull(traffic) || traffic.isBlank()) {
+            return found;
+        }
+        List<ConsumerConfig> matched = found.stream()
+                .filter(instance -> traffic.equals(instance.getLabel()))
+                .toList();
+        if (matched.isEmpty()) {
+            log.warn("autumn traffic lane has no matching instance, fallback to all. traffic:{}, service:{}",
+                    traffic, config.getName());
+            return found;
+        }
+        return matched;
     }
 
     private int maxPoolSize() {

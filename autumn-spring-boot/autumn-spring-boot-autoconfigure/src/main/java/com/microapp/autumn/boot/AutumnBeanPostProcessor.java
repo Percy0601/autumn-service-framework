@@ -314,30 +314,48 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
         ReferenceConfig<?> config = new ReferenceConfig<>();
         config.setName(refer);
         String ipPort = reference.ipPort();
-        if (Objects.nonNull(ipPort) && ipPort.length() > 0) {
-            String[] parts = ipPort.split(":");
-            if (parts.length == 2) {
-                ConsumerConfig instance = new ConsumerConfig();
-                instance.setName(refer);
-                instance.setIp(parts[0]);
-                instance.setPort(Integer.valueOf(parts[1]));
-                config.setInstances(List.of(instance));
+        if (Objects.nonNull(ipPort) && !ipPort.isBlank()) {
+            ConsumerConfig direct = parseDirectInstance(refer, ipPort);
+            if (Objects.nonNull(direct)) {
+                config.setInstances(List.of(direct));
                 config.setRegistryTypeEnum(RegistryTypeEnum.DIRECT);
+                return config;
             }
+            // 非法 ipPort 明确告警后回退注册中心发现，避免静默误连或抛异常中断 Spring 启动
+            log.warn("autumn @Reference invalid ipPort:{}, fallback to registry discovery, refer:{}", ipPort, refer);
+        }
+        String registryType = ApplicationConfig.getInstance().getRegistryType();
+        if ("consul".equalsIgnoreCase(registryType)) {
+            config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
+        } else if ("nacos".equalsIgnoreCase(registryType)) {
+            config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
         } else {
-            String registryType = ApplicationConfig.getInstance().getRegistryType();
-            if ("consul".equalsIgnoreCase(registryType)) {
-                config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
-            } else if ("nacos".equalsIgnoreCase(registryType)) {
-                config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
-            } else {
-                config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
-            }
+            config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
         }
         config.setPoolTimeout(10000L);
         config.setConnectionTimeout(1000L);
         config.setSocketTimeout(3000L);
         return config;
+    }
+
+    private ConsumerConfig parseDirectInstance(String refer, String ipPort) {
+        String[] parts = ipPort.split(":", -1);
+        if (parts.length != 2 || parts[0].isBlank()) {
+            return null;
+        }
+        try {
+            int port = Integer.parseInt(parts[1].trim());
+            if (port <= 0 || port > 65535) {
+                return null;
+            }
+            ConsumerConfig instance = new ConsumerConfig();
+            instance.setName(refer);
+            instance.setIp(parts[0].trim());
+            instance.setPort(port);
+            return instance;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

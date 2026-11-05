@@ -1,6 +1,6 @@
 # Autumn Framework 使用说明文档
 
-> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 21+ ｜ 更新日期：2026-11-04
+> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 25+ ｜ 更新日期：2026-11-06
 
 本手册覆盖 Autumn Framework（秋实框架）的接入、运行机制与全部配置项，包含：
 
@@ -562,8 +562,9 @@ mvn -DskipTests compile
 mvn test
 ```
 
-- JDK 21+、Maven 3.8+
+- JDK 25+、Maven 3.9+
 - 模块间通过 reactor 构建，`annotationProcessorPaths` 中的 SNAPSHOT 坐标会优先从 reactor 解析
+- GraalVM Native 构建（JDK 25 + native-image）：`./scripts/build-native.sh`，生成的反射/资源 hint 见 `META-INF/native-image/com.microapp.autumn/`
 
 ## 11. 常见问题
 
