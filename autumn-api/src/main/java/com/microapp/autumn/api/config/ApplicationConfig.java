@@ -101,6 +101,14 @@ public class ApplicationConfig {
      * multicast network interface, auto detect when empty
      */
     private String multicastNetworkInterface;
+    /**
+     * independent control plane thrift port, optional
+     */
+    private Integer controlPort;
+    /**
+     * control plane access token, optional
+     */
+    private String controlToken;
     public static ApplicationConfig getInstance() {
         if(Objects.isNull(instance)) {
             synchronized (ApplicationConfig.class) {
@@ -217,6 +225,11 @@ public class ApplicationConfig {
         String multicastNetworkInterfaceValue = properties.getProperty("application.multicast.network-interface");
         this.multicastNetworkInterface = (Objects.isNull(multicastNetworkInterfaceValue) || multicastNetworkInterfaceValue.length() < 1)
                 ? null : multicastNetworkInterfaceValue;
+
+        String controlPortValue = properties.getProperty("control.port");
+        this.controlPort = (Objects.isNull(controlPortValue) || controlPortValue.length() < 1) ? null : Integer.valueOf(controlPortValue);
+
+        this.controlToken = properties.getProperty("control.token");
 
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
         String jvm = runtime.getVmName();

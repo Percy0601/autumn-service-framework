@@ -21,6 +21,7 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.aop.support.AopUtils;
 
 import com.microapp.autumn.api.annotation.Export;
 import com.microapp.autumn.api.annotation.Reference;
@@ -126,6 +127,15 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
             }
             props.setProperty("nacos.beat-interval", String.valueOf(nacos.getBeatInterval()));
         }
+        AutumnProperties.Control control = properties.getControl();
+        if (Objects.nonNull(control)) {
+            if (Objects.nonNull(control.getPort())) {
+                props.setProperty("control.port", String.valueOf(control.getPort()));
+            }
+            if (Objects.nonNull(control.getToken())) {
+                props.setProperty("control.token", control.getToken());
+            }
+        }
         ApplicationConfig.getInstance().init(props);
         ProviderConfig.getInstance().init(props);
         log.info("autumn config initialized: {}", props);
@@ -150,7 +160,8 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
      * fallback to runtime reflection for beans without generated assembler.
      */
     private void exportService(Object bean) {
-        Class<?> beanClass = bean.getClass();
+        // 穿透 CGLIB/AOP 代理拿到真实实现类；否则代理类上既无 @Export 也匹配不到编译期生成的 Assembler，@Export 会失效
+        Class<?> beanClass = org.springframework.aop.support.AopUtils.getTargetClass(bean);
         List<AutumnServiceAssembler> assemblers = SpiUtil.loads(AutumnServiceAssembler.class);
         boolean exported = false;
         if (assemblers != null && !assemblers.isEmpty()) {
@@ -200,63 +211,133 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
     }
 
     /**
-     * inject @Reference field with runtime proxy
+     * inject @Reference into fields and setter methods across the bean's class hierarchy
      */
     private void injectReference(Object bean) {
         Class<?> beanClass = bean.getClass();
-        for (Field field : beanClass.getDeclaredFields()) {
-            Reference reference = field.getAnnotation(Reference.class);
-            if (Objects.isNull(reference)) {
-                continue;
-            }
-            try {
-                field.setAccessible(true);
-                if (Objects.nonNull(field.get(bean))) {
+        // 字段注入：遍历自身及所有父类字段
+        for (Class<?> c = beanClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Field field : c.getDeclaredFields()) {
+                Reference reference = field.getAnnotation(Reference.class);
+                if (Objects.isNull(reference)) {
                     continue;
                 }
-                Class<?> fieldType = field.getType();
-                if (!fieldType.isInterface()) {
-                    log.warn("autumn @Reference field type must be interface, skip. bean:{}, field:{}", beanClass.getName(), field.getName());
-                    continue;
-                }
-                String refer = reference.refer();
-                if (Objects.isNull(refer) || refer.length() < 1) {
-                    refer = fieldType.getName();
-                }
-                ReferenceConfig<?> config = new ReferenceConfig<>();
-                config.setName(refer);
-                String ipPort = reference.ipPort();
-                if (Objects.nonNull(ipPort) && ipPort.length() > 0) {
-                    String[] parts = ipPort.split(":");
-                    if (parts.length == 2) {
-                        ConsumerConfig instance = new ConsumerConfig();
-                        instance.setName(refer);
-                        instance.setIp(parts[0]);
-                        instance.setPort(Integer.valueOf(parts[1]));
-                        config.setInstances(List.of(instance));
-                        config.setRegistryTypeEnum(RegistryTypeEnum.DIRECT);
-                    }
-                } else {
-                    String registryType = ApplicationConfig.getInstance().getRegistryType();
-                    if ("consul".equalsIgnoreCase(registryType)) {
-                        config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
-                    } else if ("nacos".equalsIgnoreCase(registryType)) {
-                        config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
-                    } else {
-                        config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
-                    }
-                }
-                config.setPoolTimeout(10000L);
-                config.setConnectionTimeout(1000L);
-                config.setSocketTimeout(3000L);
-                AutumnConsumer.provider().reference(config);
-                Object proxy = createProxy(refer, fieldType);
-                field.set(bean, proxy);
-                log.info("autumn inject reference, bean:{}, field:{}, refer:{}", beanClass.getName(), field.getName(), refer);
-            } catch (Exception e) {
-                log.warn("autumn inject reference fail, bean:{}, field:{}", beanClass.getName(), field.getName(), e);
+                injectField(bean, field, reference);
             }
         }
+        // 方法（setter）注入：遍历自身及所有父类方法
+        for (Class<?> c = beanClass; c != null && c != Object.class; c = c.getSuperclass()) {
+            for (Method method : c.getDeclaredMethods()) {
+                Reference reference = method.getAnnotation(Reference.class);
+                if (Objects.isNull(reference)) {
+                    continue;
+                }
+                injectMethod(bean, method, reference);
+            }
+        }
+    }
+
+    private void injectField(Object bean, Field field, Reference reference) {
+        try {
+            field.setAccessible(true);
+            if (Objects.nonNull(field.get(bean))) {
+                return;
+            }
+            Class<?> fieldType = field.getType();
+            if (!fieldType.isInterface()) {
+                log.warn("autumn @Reference field type must be interface, skip. bean:{}, field:{}", bean.getClass().getName(), field.getName());
+                return;
+            }
+            field.set(bean, buildProxy(reference, fieldType));
+            log.info("autumn inject reference(field), bean:{}, field:{}, refer:{}", bean.getClass().getName(), field.getName(), reference.refer());
+        } catch (Exception e) {
+            log.warn("autumn inject reference(field) fail, bean:{}, field:{}", bean.getClass().getName(), field.getName(), e);
+        }
+    }
+
+    private void injectMethod(Object bean, Method method, Reference reference) {
+        try {
+            if (method.getParameterCount() != 1) {
+                log.warn("autumn @Reference method must have exactly one parameter, skip. bean:{}, method:{}", bean.getClass().getName(), method.getName());
+                return;
+            }
+            Class<?> paramType = method.getParameterTypes()[0];
+            if (!paramType.isInterface()) {
+                log.warn("autumn @Reference method param type must be interface, skip. bean:{}, method:{}", bean.getClass().getName(), method.getName());
+                return;
+            }
+            method.setAccessible(true);
+            method.invoke(bean, buildProxy(reference, paramType));
+            log.info("autumn inject reference(method), bean:{}, method:{}, refer:{}", bean.getClass().getName(), method.getName(), reference.refer());
+        } catch (Exception e) {
+            log.warn("autumn inject reference(method) fail, bean:{}, method:{}", bean.getClass().getName(), method.getName(), e);
+        }
+    }
+
+    /**
+     * build @Reference proxy: prefer compile-time generated _&lt;Outer&gt;Proxy (zero reflection, native friendly),
+     * fall back to runtime JDK dynamic proxy. Either way the reference config is registered first to trigger discovery.
+     */
+    private Object buildProxy(Reference reference, Class<?> iface) {
+        String refer = reference.refer();
+        if (Objects.isNull(refer) || refer.isEmpty()) {
+            refer = iface.getName();
+        }
+        AutumnConsumer.provider().reference(buildReferenceConfig(reference, refer));
+        Object generated = tryGeneratedProxy(refer, iface);
+        if (Objects.nonNull(generated)) {
+            return generated;
+        }
+        return createProxy(refer, iface);
+    }
+
+    private Object tryGeneratedProxy(String refer, Class<?> iface) {
+        Class<?> outer = iface.getDeclaringClass();
+        if (Objects.isNull(outer)) {
+            return null;
+        }
+        String generatedName = iface.getPackageName() + "._" + outer.getSimpleName() + "Proxy";
+        try {
+            Class<?> proxyClass = Class.forName(generatedName, true, iface.getClassLoader());
+            Constructor<?> ctor = proxyClass.getConstructor(String.class);
+            return ctor.newInstance(refer);
+        } catch (ClassNotFoundException e) {
+            // 该接口未生成编译期代理，回退运行时动态代理
+            return null;
+        } catch (Exception e) {
+            log.warn("autumn load generated proxy fail, iface:{}, fallback runtime proxy", iface.getName(), e);
+            return null;
+        }
+    }
+
+    private ReferenceConfig<?> buildReferenceConfig(Reference reference, String refer) {
+        ReferenceConfig<?> config = new ReferenceConfig<>();
+        config.setName(refer);
+        String ipPort = reference.ipPort();
+        if (Objects.nonNull(ipPort) && ipPort.length() > 0) {
+            String[] parts = ipPort.split(":");
+            if (parts.length == 2) {
+                ConsumerConfig instance = new ConsumerConfig();
+                instance.setName(refer);
+                instance.setIp(parts[0]);
+                instance.setPort(Integer.valueOf(parts[1]));
+                config.setInstances(List.of(instance));
+                config.setRegistryTypeEnum(RegistryTypeEnum.DIRECT);
+            }
+        } else {
+            String registryType = ApplicationConfig.getInstance().getRegistryType();
+            if ("consul".equalsIgnoreCase(registryType)) {
+                config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
+            } else if ("nacos".equalsIgnoreCase(registryType)) {
+                config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
+            } else {
+                config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
+            }
+        }
+        config.setPoolTimeout(10000L);
+        config.setConnectionTimeout(1000L);
+        config.setSocketTimeout(3000L);
+        return config;
     }
 
     /**
@@ -269,7 +350,8 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                     case "equals" -> proxy == args[0];
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "toString" -> iface.getSimpleName() + "$autumnProxy@" + Integer.toHexString(System.identityHashCode(proxy));
-                    default -> method.invoke(this, args);
+                    case "getClass" -> proxy.getClass();
+                    default -> throw new UnsupportedOperationException("autumn proxy does not support " + method);
                 };
             }
             ConcurrentBagEntry entry = null;

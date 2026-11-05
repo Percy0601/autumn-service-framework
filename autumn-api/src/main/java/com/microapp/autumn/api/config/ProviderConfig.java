@@ -72,7 +72,7 @@ public class ProviderConfig {
             Integer _maxThreads = Integer.valueOf(maxThreadsValue);
             this.maxThreads = _maxThreads;
         } else {
-            this.maxThreads = 1;
+            this.maxThreads = 32;
         }
 
         String workerKeepAliveTimeValue = properties.getProperty("provider.worker-keep-alive-time");

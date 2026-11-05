@@ -1,5 +1,6 @@
 package com.microapp.autumn.core.server;
 
+import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,6 +18,7 @@ import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.layered.TFramedTransport;
 
 import com.microapp.autumn.api.ControlApi;
+import com.microapp.autumn.api.config.ApplicationConfig;
 import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.config.ServiceConfig;
 import com.microapp.autumn.api.extension.AttachableProcessor;
@@ -112,12 +114,17 @@ public class AutumnProvider {
             tArgs.stopTimeoutUnit(TimeUnit.SECONDS);
             tArgs.processor(processor);
 
-            ServiceConfig<ControlApi.Iface> controlApiService = new ServiceConfig();
-            controlApiService.setInterfaceClass(ControlApi.Iface.class);
-            TProcessor controlProcessor = new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl());
-            AttachableProcessor attachableProcessor = new AttachableProcessor(controlProcessor);
-            controlApiService.setRef(attachableProcessor);
-            service(controlApiService);
+            Integer controlPort = ApplicationConfig.getInstance().getControlPort();
+            boolean independentControl = (controlPort != null && controlPort > 0);
+            if (!independentControl) {
+                // 默认：ControlApi 复用业务端口（多路复用）
+                ServiceConfig<ControlApi.Iface> controlApiService = new ServiceConfig();
+                controlApiService.setInterfaceClass(ControlApi.Iface.class);
+                TProcessor controlProcessor = new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl());
+                AttachableProcessor attachableProcessor = new AttachableProcessor(controlProcessor);
+                controlApiService.setRef(attachableProcessor);
+                service(controlApiService);
+            }
 
             TServer tServer = new TThreadedSelectorServer(tArgs);
             Thread thread = new Thread(() -> {
@@ -133,6 +140,11 @@ public class AutumnProvider {
             this.server = tServer;
             this.started = true;
             log.info("autumn server running, port:{}, services:{}", providerConfig.getPort(), services.keySet());
+
+            if (independentControl) {
+                // 控制面独立端口：仅承载 ControlApi，与业务流量隔离
+                startControlServer(controlPort, providerConfig);
+            }
         } catch (TTransportException e) {
             closeQuietly(serverTransport);
             throw new AutumnException("autumn server start failed, port:" + providerConfig.getPort(), e);
@@ -162,6 +174,49 @@ public class AutumnProvider {
 
     public boolean isStarted() {
         return started;
+    }
+
+    /**
+     * 启动独立控制面 thrift 服务器，仅承载 ControlApi，与业务端口隔离。
+     * 当配置了 control.token 时只绑定回环地址，作为访问控制（逐调用 token 校验需 thrift IDL 增加握手方法，后续迭代）。
+     */
+    private void startControlServer(int controlPort, ProviderConfig providerConfig) {
+        TNonblockingServerTransport controlTransport = null;
+        try {
+            String controlToken = ApplicationConfig.getInstance().getControlToken();
+            InetSocketAddress bindAddr;
+            if (controlToken != null && !controlToken.isEmpty()) {
+                bindAddr = new InetSocketAddress("127.0.0.1", controlPort);
+                log.info("autumn control server binds loopback only because control.token is configured, port:{}", controlPort);
+            } else {
+                bindAddr = new InetSocketAddress(controlPort);
+            }
+            controlTransport = new TNonblockingServerSocket(bindAddr);
+            TMultiplexedProcessor controlProcessor = new TMultiplexedProcessor();
+            controlProcessor.registerProcessor(ControlApi.Iface.class.getName(),
+                    new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl()));
+            TThreadedSelectorServer.Args cArgs = new TThreadedSelectorServer.Args(controlTransport);
+            cArgs.transportFactory(new TFramedTransport.Factory());
+            cArgs.protocolFactory(new TBinaryProtocol.Factory());
+            cArgs.processor(controlProcessor);
+            cArgs.acceptQueueSizePerThread(1000);
+            cArgs.stopTimeoutVal(30);
+            cArgs.stopTimeoutUnit(TimeUnit.SECONDS);
+            TServer controlServer = new TThreadedSelectorServer(cArgs);
+            Thread ct = new Thread(() -> {
+                try {
+                    controlServer.serve();
+                } catch (Throwable e) {
+                    log.error("autumn control server terminated unexpectedly, port:{}", controlPort, e);
+                }
+            }, "autumn-control-server");
+            ct.setDaemon(true);
+            ct.start();
+            log.info("autumn control server running, port:{}", controlPort);
+        } catch (TTransportException e) {
+            closeQuietly(controlTransport);
+            log.error("autumn control server start failed, port:{}", controlPort, e);
+        }
     }
 
     private void closeQuietly(TNonblockingServerTransport serverTransport) {

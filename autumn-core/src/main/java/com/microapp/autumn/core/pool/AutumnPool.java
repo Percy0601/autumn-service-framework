@@ -156,7 +156,7 @@ public final class AutumnPool implements AutoCloseable {
         if(Objects.isNull(bag)) {
             return;
         }
-        bag.remove(consumerConfig.getIp());
+        bag.remove(consumerConfig.getIp(), consumerConfig.getPort());
     }
 
     private void evict() {

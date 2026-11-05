@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.microapp.autumn.api.annotation.Export;
 import com.microapp.autumn.api.annotation.Reference;
+import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.sample.api.SomeService;
 import com.microapp.autumn.sample.api.User;
 
@@ -31,7 +32,9 @@ public class SomeServiceImpl implements SomeService.Iface {
 
     @Override
     public String echo(String msg) throws TException {
-        return "Hello, " + msg;
+        // [load-balance test aid] 在响应中带上本实例的 thrift 端口，便于观察请求落到哪个 provider 实例
+        Integer port = ProviderConfig.getInstance().getPort();
+        return "Hello, " + msg + " [node:" + (port == null ? "?" : port) + "]";
     }
 
     @Override

@@ -309,13 +309,16 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     /**
-     * 调用失败（协议可能已错位）时丢弃连接，不再归还池
+     * 调用失败（协议可能已错位）时丢弃连接，不再归还池。
+     * 无论连接当前处于何种状态都立即物理关闭：持有方已显式放弃该连接，不会再 requite；
+     * 若仅标记 REMOVED 而不关闭，会造成 socket 永久泄漏。
      */
     public void discard(ConcurrentBagEntry entry) {
         if (Objects.isNull(entry)) {
             return;
         }
         remove(entry);
+        closeQuietly(entry);
     }
 
     @Override
@@ -365,14 +368,26 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     /**
-     * 实例下线：关闭空闲连接，借出中的连接只标记，等归还时关闭
+     * 实例下线（按 IP 粒度，兼容旧调用）：关闭空闲连接，借出中的连接只标记，等归还时关闭。
+     * 建议优先使用 {@link #remove(String, Integer)} 精确到端口，避免误删同机其它端口实例的连接。
      */
     public void remove(String ip) {
+        remove(ip, null);
+    }
+
+    /**
+     * 实例下线（精确到 ip:port）：关闭空闲连接，借出中的连接只标记，等归还时关闭。
+     * 仅匹配 IP 相同且（port 非 null 时）端口相同的连接，避免同机多实例互相误删。
+     */
+    public void remove(String ip, Integer port) {
         if (Objects.isNull(ip)) {
             return;
         }
         for (ConcurrentBagEntry entry : mapping.values()) {
             if (!Objects.equals(ip, entry.getIp())) {
+                continue;
+            }
+            if (Objects.nonNull(port) && !Objects.equals(port, entry.getPort())) {
                 continue;
             }
             remove(entry);

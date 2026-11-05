@@ -1,10 +1,10 @@
 package com.microapp.autumn.compiler;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
@@ -33,7 +33,7 @@ import com.microapp.autumn.compiler.util.FreemarkerUtil;
 import com.microapp.autumn.compiler.util.MetaHolder;
 
 @SupportedAnnotationTypes(value = {"com.microapp.autumn.api.annotation.Export"})
-@SupportedSourceVersion(value = SourceVersion.RELEASE_17)
+@SupportedSourceVersion(value = SourceVersion.RELEASE_21)
 public class ExportServiceProcessor extends AbstractProcessor {
     private static final String IFACE_SUFFIX = ".Iface";
     private static final String SERVICE_REGISTER_SUFFIX = "ServiceRegister";
@@ -46,7 +46,9 @@ public class ExportServiceProcessor extends AbstractProcessor {
     private Elements mElementsUtils;
     private Messager mMessager;
     private Map<String, TargetClass> mapping = new ConcurrentHashMap<>();
-    private final AtomicBoolean generated = new AtomicBoolean(false);
+    private final Set<String> written = ConcurrentHashMap.newKeySet();
+    // accumulated generated assembler (ServiceRegister) FQNs across rounds, for the SPI file
+    private final Set<String> generatedAssemblers = ConcurrentHashMap.newKeySet();
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnvironment) {
@@ -66,10 +68,10 @@ public class ExportServiceProcessor extends AbstractProcessor {
                 collect(annotatedClass);
             }
         }
-        if (generated.compareAndSet(false, true)) {
-            writeAll();
-        }
-        return true;
+            if (!roundEnv.processingOver()) {
+                writePending();
+            }
+            return true;
     }
 
     private void collect(Element annotatedClass) {
@@ -101,16 +103,19 @@ public class ExportServiceProcessor extends AbstractProcessor {
         log.info("autumn export collect entry:{}", entry);
     }
 
-    private void writeAll() {
+    private void writePending() {
         List<ExportEntry> entries = MetaHolder.getExportEntries();
         if (entries.isEmpty()) {
             log.warn("autumn export entries empty, skip code generation.");
             return;
         }
         try {
-            StringBuilder services = new StringBuilder();
+            Set<String> generatedThisRound = new LinkedHashSet<>();
             for (ExportEntry entry : entries) {
                 String implFullName = entry.getImplementName();
+                if (written.contains(implFullName)) {
+                    continue;
+                }
                 String ifaceName = entry.getInterfaceName();
                 if (ifaceName == null) {
                     continue;
@@ -124,17 +129,22 @@ public class ExportServiceProcessor extends AbstractProcessor {
                 try (java.io.Writer sourceWriter = builderFile.openWriter()) {
                     FreemarkerUtil.handleServer(packageName, simpleClassName, implFullName, ifaceName, ifaceOuterName, sourceWriter);
                 }
+                written.add(implFullName);
+                generatedThisRound.add(generatedFullName);
+                generatedAssemblers.add(generatedFullName);
                 log.info("autumn export generate register class:{}", generatedFullName);
-                services.append(generatedFullName).append("\n");
             }
-            if (services.length() > 0) {
+            if (!generatedThisRound.isEmpty()) {
                 FileObject servicesFile = mFilerUtils.createResource(StandardLocation.CLASS_OUTPUT, "",
                         SERVICES_LOCATION + "/" + ASSEMBLER_INTERFACE);
-                java.io.Writer writer = servicesFile.openWriter();
-                writer.write(services.toString());
-                writer.flush();
-                writer.close();
-                log.info("autumn export generate spi services file:{}", ASSEMBLER_INTERFACE);
+                // the SPI file must list the generated assembler classes (which implement AutumnServiceAssembler),
+                // NOT the implementation classes.
+                try (java.io.Writer writer = servicesFile.openWriter()) {
+                    for (String cls : generatedAssemblers) {
+                        writer.write(cls + "\n");
+                    }
+                }
+                log.info("autumn export generate spi services file:{}, entries:{}", ASSEMBLER_INTERFACE, generatedAssemblers);
             }
         } catch (Exception e) {
             log.warn("autumn export write source exception:", e);

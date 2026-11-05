@@ -31,13 +31,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @SupportedAnnotationTypes(value = {"com.microapp.autumn.api.annotation.Reference"})
-@SupportedSourceVersion(value = SourceVersion.RELEASE_17)
+@SupportedSourceVersion(value = SourceVersion.RELEASE_21)
 public class ReferenceServiceProcessor extends AbstractProcessor {
     private static final String IFACE_SUFFIX = ".Iface";
     private static final String PROXY_SUFFIX = "Proxy";
     private Logger log = LoggerFactory.getLogger(ReferenceServiceProcessor.class);
     private Map<String, ReferenceEntry> mapping = new ConcurrentHashMap<>();
-    private final AtomicBoolean generated = new AtomicBoolean(false);
+    private final Set<String> written = ConcurrentHashMap.newKeySet();
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -48,10 +48,10 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
                 collect(annotatedElement);
             }
         }
-        if (generated.compareAndSet(false, true)) {
-            handleWrite();
-        }
-        return true;
+            if (!roundEnv.processingOver()) {
+                writePending();
+            }
+            return true;
     }
 
     private void collect(Element annotatedElement) {
@@ -115,9 +115,12 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
         return methodElements;
     }
 
-    private void handleWrite() {
+    private void writePending() {
         ConcurrentHashMap<String, ReferenceEntry> referenceEntries = MetaHolder.getReferService();
         referenceEntries.forEach((ifaceName, entry) -> {
+            if (written.contains(ifaceName)) {
+                return;
+            }
             try {
                 String ifaceOuterName = ifaceName.substring(0, ifaceName.length() - IFACE_SUFFIX.length());
                 String packageName = ClassNameUtil.getPackageName(ifaceOuterName);
@@ -129,6 +132,7 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
                     FreemarkerUtil.handleProxy(packageName, outerSimpleName, ifaceName, ifaceOuterName,
                             entry.getReferApplication(), entry, sourceWriter);
                 }
+                written.add(ifaceName);
                 log.info("autumn reference generate proxy class:{}, refer:{}", generatedFullName, entry.getReferApplication());
             } catch (Exception e) {
                 log.warn("handleWrite Proxy Exception:", e);

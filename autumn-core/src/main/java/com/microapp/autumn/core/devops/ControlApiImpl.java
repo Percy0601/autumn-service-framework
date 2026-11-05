@@ -14,6 +14,7 @@ import org.apache.thrift.transport.layered.TFramedTransport;
 
 import com.microapp.autumn.api.ControlApi;
 import com.microapp.autumn.api.config.ApplicationConfig;
+import com.microapp.autumn.core.server.AutumnProvider;
 import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.core.pool.AutumnPool;
@@ -32,6 +33,10 @@ public class ControlApiImpl implements ControlApi.Iface {
 
     @Override
     public String health() throws TException {
+        // 反映真实监听状态：provider 未真正启动监听时返回非 OK，便于探测区分（保留 "OK" 契约供 check() 判定）
+        if (!AutumnProvider.provider().isStarted()) {
+            return "DOWN:provider-not-started";
+        }
         return "OK";
     }
 

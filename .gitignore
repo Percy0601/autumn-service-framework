@@ -1,140 +1,35 @@
-## .gitignore for Grails 1.2 and 1.3
-
-# .gitignore for maven
+# ============ Maven / Java ============
 target/
-*.releaseBackup
-
-# web application files
-#/web-app/WEB-INF
-
-# IDE support files
-/.classpath
-/.launch
-/.project
-/.settings
-/*.launch
-/*.tmproj
-/ivy*
-/eclipse
-
-# default HSQL database files for production mode
-/prodDb.*
-
-# general HSQL database files
-*Db.properties
-*Db.script
-
-# logs
-/stacktrace.log
-/test/reports
-/logs
-*.log
-
-# project release file
-/*.war
-
-# plugin release file
-/*.zip
-/*.zip.sha1
-
-# older plugin install locations
-/plugins
-/web-app/plugins
-/web-app/WEB-INF/classes
-
-# "temporary" build files
-target/
-out/
-
-# other
-*.iws
-
-#.gitignore for java
+**/target/
 *.class
 
-# Package Files #
-*.war
-*.ear
-
-## .gitignore for eclipse
-
-*.pydevproject
-.project
-.metadata
-bin/**
-tmp/**
-tmp/**/*
-*.tmp
-*.bak
-*.swp
-*~.nib
-local.properties
-.classpath
-.settings/
-.loadpath
-
-# External tool builders
-.externalToolBuilders/
-
-# Locally stored "Eclipse launch configurations"
-*.launch
-
-# CDT-specific
-.cproject
-
-# PDT-specific
-.buildpath
-
-## .gitignore for intellij
-
+# ============ IDE ============
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
-.idea/
-../.idea/
-## .gitignore for linux
-.*
-!.gitignore
-!.gitattributes
-*~
+.project
+.classpath
+.settings/
+.vscode/
+*.launch
+*.tmproj
 
-## .gitignore for windows
-
-# Windows image file caches
-Thumbs.db
-ehthumbs.db
-
-# Folder config file
-Desktop.ini
-
-# Recycle Bin used on file shares
-$RECYCLE.BIN/
-
-## .gitignore for mac os x
-
+# ============ Logs / temp ============
+*.log
+logs/
+*.tmp
+*.swp
 .DS_Store
-.AppleDouble
-.LSOverride
-Icon
 
+# ============ OS / misc ============
+*.pid
+bin/
 
-# Thumbnails
-._*
+# ============ Release / packaging ============
+*.war
+*.ear
+*.zip
 
-# Files that might appear on external disk
-.Spotlight-V100
-.Trashes
-
-# gradle ignore
-/build/
-**/build/**
-gradle-app.setting
-!gradle-wrapper.jar
-.gradletasknamecache
-
-# python
-**/__pycache__/**
-*.pyc
-
-
+# ============ Local workspace data ============
+.workbuddy/
