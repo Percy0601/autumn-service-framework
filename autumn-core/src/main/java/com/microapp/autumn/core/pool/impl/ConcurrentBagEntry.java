@@ -18,4 +18,19 @@ public interface ConcurrentBagEntry {
     String getId();
     void close();
 
+    /**
+     * 连接创建时间（毫秒），用于 maxLifetime 回收
+     */
+    long getCreatedAt();
+
+    /**
+     * 最近一次借出时间（毫秒），用于 idle 回收
+     */
+    long getLastUsed();
+
+    /**
+     * 借出时刷新最近使用时间
+     */
+    void touch();
+
 }

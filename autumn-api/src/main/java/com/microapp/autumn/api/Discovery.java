@@ -50,4 +50,10 @@ public interface Discovery {
      * discovery reference service
      */
     void discovery();
+
+    /**
+     * 停止发现线程并释放资源，默认空实现
+     */
+    default void close() {
+    }
 }

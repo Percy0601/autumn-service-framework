@@ -1,11 +1,7 @@
 package com.microapp.autumn.boot;
 
-import java.util.Objects;
-
 import org.springframework.context.SmartLifecycle;
 
-import com.microapp.autumn.api.Registry;
-import com.microapp.autumn.api.util.SpiUtil;
 import com.microapp.autumn.core.AutumnBootstrap;
 
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +23,7 @@ public class AutumnLifecycle implements SmartLifecycle {
         if (running) {
             return;
         }
+        // 启动失败会抛异常，让 spring 上下文启动失败，而不是注册一个不可用的实例
         AutumnBootstrap.getInstance().serve();
         running = true;
         log.info("autumn framework started.");
@@ -37,10 +34,8 @@ public class AutumnLifecycle implements SmartLifecycle {
         if (!running) {
             return;
         }
-        Registry registry = SpiUtil.load(Registry.class);
-        if (Objects.nonNull(registry)) {
-            registry.shutdownHook();
-        }
+        // 注销注册中心、停止发现线程、停止 server、关闭连接池
+        AutumnBootstrap.getInstance().close();
         running = false;
         log.info("autumn framework stopped.");
     }

@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Getter
-@ToString
+@ToString(exclude = {"consulToken", "nacosAccessToken"})
 public class ApplicationConfig {
     private static volatile ApplicationConfig instance;
 

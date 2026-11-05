@@ -46,9 +46,27 @@ public class ThreadUtil {
         if (Objects.isNull(scheduledExecutorService)) {
             synchronized (this) {
                 if(Objects.isNull(scheduledExecutorService)) {
-                    scheduledExecutorService = Executors.newSingleThreadScheduledExecutor();
+                    scheduledExecutorService = Executors.newSingleThreadScheduledExecutor(runnable -> {
+                        Thread thread = new Thread(runnable, "autumn-schedule");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
                 }
             }
+        }
+    }
+
+    /**
+     * 停止池内线程，允许后续重新创建（优雅停机时调用）
+     */
+    public synchronized void shutdown() {
+        if (Objects.nonNull(workerExecutor)) {
+            workerExecutor.shutdownNow();
+            workerExecutor = null;
+        }
+        if (Objects.nonNull(scheduledExecutorService)) {
+            scheduledExecutorService.shutdownNow();
+            scheduledExecutorService = null;
         }
     }
 
@@ -100,6 +118,7 @@ public class ThreadUtil {
         public Thread newThread(Runnable r) {
             Thread newThread = new Thread(r);
             newThread.setName(namePrefix + ":Thread-" + newThread.getId());
+            newThread.setDaemon(true);
             return newThread;
         }
     }

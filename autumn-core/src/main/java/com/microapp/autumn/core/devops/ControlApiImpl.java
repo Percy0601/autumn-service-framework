@@ -1,5 +1,7 @@
 package com.microapp.autumn.core.devops;
 
+import java.util.Objects;
+
 import org.apache.thrift.TException;
 import org.apache.thrift.TServiceClient;
 import org.apache.thrift.protocol.TBinaryProtocol;
@@ -25,37 +27,48 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ControlApiImpl implements ControlApi.Iface {
 
+    private static final int CHECK_CONNECT_TIMEOUT_MILLIS = 1000;
+    private static final int CHECK_SOCKET_TIMEOUT_MILLIS = 2000;
+
     @Override
     public String health() throws TException {
         return "OK";
     }
 
+    /**
+     * 只输出非敏感信息：ApplicationConfig.toString 已排除 consulToken / nacosAccessToken
+     */
     @Override
     public String applicationInfo() throws TException {
-        String result = ApplicationConfig.getInstance().toString();
-        return result;
+        return ApplicationConfig.getInstance().toString();
     }
 
     @Override
     public String providerInfo() throws TException {
-        String result = ProviderConfig.getInstance().toString();
-        return result;
+        return ProviderConfig.getInstance().toString();
     }
 
     @Override
     public String referenceConfig(String name) throws TException {
         ReferenceConfig<? extends TServiceClient> config = AutumnPool.getInstance().getReferenceConfig(name);
-        String result = config.toString();
-        return result;
+        if (Objects.isNull(config)) {
+            return "reference config not found: " + name;
+        }
+        return config.toString();
     }
 
 
     @Override
     public String check(String ip, int port) throws TException{
+        if (Objects.isNull(ip) || port <= 0) {
+            return String.valueOf(Boolean.FALSE);
+        }
+        TSocket tsocket = null;
         TTransport transport = null;
-        TTransport tsocket = null;
         try {
             tsocket = new TSocket(ip, port);
+            tsocket.setConnectTimeout(CHECK_CONNECT_TIMEOUT_MILLIS);
+            tsocket.setTimeout(CHECK_SOCKET_TIMEOUT_MILLIS);
             transport = new TFramedTransport(tsocket);
             TProtocol protocol = new TBinaryProtocol(transport);
             transport.open();
@@ -64,14 +77,26 @@ public class ControlApiImpl implements ControlApi.Iface {
             String result = client.health();
             return String.valueOf("OK".equals(result));
         } catch (TTransportException e) {
-            log.warn("autumn check health connect exception: ", e);
+            log.warn("autumn check health connect exception:{}", e.getMessage());
             return String.valueOf(Boolean.FALSE);
         } catch (TException e) {
-            log.warn("autumn check health exception: ", e);
+            log.warn("autumn check health exception:{}", e.getMessage());
             return String.valueOf(Boolean.FALSE);
         } finally {
-            transport.close();
-            tsocket.close();
+            if (Objects.nonNull(transport)) {
+                try {
+                    transport.close();
+                } catch (Exception ignored) {
+                    // 探测连接清理
+                }
+            }
+            if (Objects.nonNull(tsocket)) {
+                try {
+                    tsocket.close();
+                } catch (Exception ignored) {
+                    // 探测连接清理
+                }
+            }
         }
     }
 

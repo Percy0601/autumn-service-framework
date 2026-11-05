@@ -3,11 +3,14 @@ package com.microapp.autumn.core.pool.impl;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.thrift.transport.TTransport;
 
 public class ConcurrentBagEntryImpl<T extends TTransport> implements ConcurrentBagEntry{
     private final AtomicInteger state =  new AtomicInteger(STATE_NOT_IN_USE);
+    private final long createdAt = System.currentTimeMillis();
+    private final AtomicLong lastUsed = new AtomicLong(createdAt);
     private String service;
     private String ip;
     private Integer port;
@@ -20,6 +23,21 @@ public class ConcurrentBagEntryImpl<T extends TTransport> implements ConcurrentB
         this.ip = ip;
         this.port = port;
         id = UUID.randomUUID().toString();
+    }
+
+    @Override
+    public long getCreatedAt() {
+        return createdAt;
+    }
+
+    @Override
+    public long getLastUsed() {
+        return lastUsed.get();
+    }
+
+    @Override
+    public void touch() {
+        lastUsed.set(System.currentTimeMillis());
     }
 
     @Override

@@ -20,6 +20,7 @@ import com.microapp.autumn.api.ControlApi;
 import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.config.ServiceConfig;
 import com.microapp.autumn.api.extension.AttachableProcessor;
+import com.microapp.autumn.api.util.AutumnException;
 import com.microapp.autumn.api.util.CommonUtil;
 import com.microapp.autumn.api.util.ThreadUtil;
 import com.microapp.autumn.core.devops.ControlApiImpl;
@@ -35,6 +36,8 @@ public class AutumnProvider {
     private volatile static AutumnProvider singleton = null;
     private TMultiplexedProcessor processor;
     private Map<Class, ServiceConfig> services;
+    private volatile TServer server;
+    private volatile boolean started;
 
     private AutumnProvider() {
 
@@ -53,8 +56,8 @@ public class AutumnProvider {
         return singleton;
     }
 
-    private void export(String name, TProcessor serviceProcessor) {
-        if(services.containsKey(name)) {
+    private void export(Class<?> interfaceClass, String name, TProcessor serviceProcessor) {
+        if(services.containsKey(interfaceClass)) {
             log.warn("autumn provider processor contains the service, not need repeat export service. service-name:{}", name);
             return;
         }
@@ -63,7 +66,7 @@ public class AutumnProvider {
     }
 
     public <T> AutumnProvider service(ServiceConfig<T> serviceConfig) {
-        export(serviceConfig.getInterfaceClass().getName(), serviceConfig.getRef());
+        export(serviceConfig.getInterfaceClass(), serviceConfig.getInterfaceClass().getName(), serviceConfig.getRef());
         services.put(serviceConfig.getInterfaceClass(), serviceConfig);
         return this;
     }
@@ -76,48 +79,100 @@ public class AutumnProvider {
         processor = new TMultiplexedProcessor();
     }
 
-    public void start() {
-        Runnable runnable = () -> {
-            try {
-                Properties properties = CommonUtil.readClasspath("application.properties");
-                ProviderConfig providerConfig = ProviderConfig.getInstance();
-                providerConfig.init(properties);
-                if(!Boolean.TRUE.equals(providerConfig.getEnabled())) {
-                    log.info("autumn provider disabled, skip thrift server start.");
-                    return;
+    /**
+     * 同步启动：监听端口绑定成功后才返回，绑定失败直接抛出，调用方不得继续注册
+     */
+    public synchronized void start() {
+        Properties properties = CommonUtil.readClasspath("application.properties");
+        ProviderConfig providerConfig = ProviderConfig.getInstance();
+        providerConfig.init(properties);
+        if(!Boolean.TRUE.equals(providerConfig.getEnabled())) {
+            log.info("autumn provider disabled, skip thrift server start.");
+            return;
+        }
+        if(started) {
+            log.warn("autumn provider already started, skip repeat start. port:{}", providerConfig.getPort());
+            return;
+        }
+
+        TNonblockingServerTransport serverTransport = null;
+        try {
+            // 构造时完成 bind，端口占用会在这里抛异常
+            serverTransport = new TNonblockingServerSocket(providerConfig.getPort());
+
+            ThreadUtil singleton = ThreadUtil.getInstance();
+            ExecutorService executorService = singleton.getWorkerExecutor(providerConfig);
+
+            TThreadedSelectorServer.Args tArgs = new TThreadedSelectorServer.Args(serverTransport);
+            tArgs.transportFactory(new TFramedTransport.Factory());
+            tArgs.protocolFactory(new TBinaryProtocol.Factory());
+            tArgs.executorService(executorService);
+            tArgs.acceptQueueSizePerThread(1000);
+            tArgs.stopTimeoutVal(30);
+            tArgs.stopTimeoutUnit(TimeUnit.SECONDS);
+            tArgs.processor(processor);
+
+            ServiceConfig<ControlApi.Iface> controlApiService = new ServiceConfig();
+            controlApiService.setInterfaceClass(ControlApi.Iface.class);
+            TProcessor controlProcessor = new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl());
+            AttachableProcessor attachableProcessor = new AttachableProcessor(controlProcessor);
+            controlApiService.setRef(attachableProcessor);
+            service(controlApiService);
+
+            TServer tServer = new TThreadedSelectorServer(tArgs);
+            Thread thread = new Thread(() -> {
+                try {
+                    tServer.serve();
+                } catch (Throwable e) {
+                    log.error("autumn server terminated unexpectedly, port:{}", providerConfig.getPort(), e);
                 }
+            }, "autumn-server");
+            thread.setDaemon(true);
+            thread.start();
 
-                ThreadUtil singleton = ThreadUtil.getInstance();
-                ExecutorService executorService = singleton.getWorkerExecutor(providerConfig);
+            this.server = tServer;
+            this.started = true;
+            log.info("autumn server running, port:{}, services:{}", providerConfig.getPort(), services.keySet());
+        } catch (TTransportException e) {
+            closeQuietly(serverTransport);
+            throw new AutumnException("autumn server start failed, port:" + providerConfig.getPort(), e);
+        } catch (RuntimeException e) {
+            closeQuietly(serverTransport);
+            throw e;
+        }
+    }
 
-                TNonblockingServerTransport serverTransport = new TNonblockingServerSocket(providerConfig.getPort());
-                TThreadedSelectorServer.Args tArgs = new TThreadedSelectorServer.Args(serverTransport);
-                tArgs.transportFactory(new TFramedTransport.Factory());
-                tArgs.protocolFactory(new TBinaryProtocol.Factory());
-                tArgs.executorService(executorService);
-                tArgs.acceptQueueSizePerThread(1000);
-                tArgs.stopTimeoutVal(30);
-                tArgs.stopTimeoutUnit(TimeUnit.SECONDS);
-                tArgs.processor(processor);
+    /**
+     * 停止监听并释放端口，可重复调用
+     */
+    public synchronized void stop() {
+        TServer current = this.server;
+        this.server = null;
+        this.started = false;
+        if(current == null) {
+            return;
+        }
+        try {
+            current.stop();
+            log.info("autumn server stopped.");
+        } catch (Exception e) {
+            log.warn("autumn server stop exception:{}", e.getMessage());
+        }
+    }
 
-                ServiceConfig<ControlApi.Iface> controlApiService = new ServiceConfig();
-                controlApiService.setInterfaceClass(ControlApi.Iface.class);
-                TProcessor controlProcessor = new ControlApi.Processor<ControlApi.Iface>(new ControlApiImpl());
-                AttachableProcessor attachableProcessor = new AttachableProcessor(controlProcessor);
-                controlApiService.setRef(attachableProcessor);
-                service(controlApiService);
-                TServer server = new TThreadedSelectorServer(tArgs);
-                log.info("autumn server running, services:{}", services.keySet());
-                server.serve();
-            } catch (TTransportException e) {
-                log.warn("autumn server start exception, exception:", e);
-                throw new RuntimeException(e);
-            }
-        };
+    public boolean isStarted() {
+        return started;
+    }
 
-        Thread thread = new Thread(runnable);
-        thread.setDaemon(true);
-        thread.start();
+    private void closeQuietly(TNonblockingServerTransport serverTransport) {
+        if(serverTransport == null) {
+            return;
+        }
+        try {
+            serverTransport.close();
+        } catch (Exception e) {
+            log.debug("autumn server transport close exception:{}", e.getMessage());
+        }
     }
 
 }

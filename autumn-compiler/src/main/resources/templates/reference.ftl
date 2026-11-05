@@ -15,6 +15,7 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
     @Override
     public ${method.returnType} ${method.name}(<#list method.paramTypes as paramType><#if (paramType_index > 0)>, </#if>${paramType} var${paramType_index}</#list>) throws org.apache.thrift.TException {
         com.microapp.autumn.core.pool.impl.ConcurrentBagEntry entry = null;
+        boolean discard = false;
         try {
             entry = com.microapp.autumn.core.pool.AutumnPool.getInstance().borrow(service);
             if (entry == null) {
@@ -29,9 +30,16 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
             <#else>
             return client.${method.name}(<#list method.paramTypes as paramType><#if (paramType_index > 0)>, </#if>var${paramType_index}</#list>);
             </#if>
+        } catch (org.apache.thrift.TException e) {
+            discard = true;
+            throw e;
         } finally {
             if (entry != null) {
-                com.microapp.autumn.core.pool.AutumnPool.getInstance().requite(entry);
+                if (discard) {
+                    com.microapp.autumn.core.pool.AutumnPool.getInstance().discard(entry);
+                } else {
+                    com.microapp.autumn.core.pool.AutumnPool.getInstance().requite(entry);
+                }
             }
         }
     }

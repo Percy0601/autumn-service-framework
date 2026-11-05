@@ -2,15 +2,15 @@ package com.microapp.autumn.api.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.StringReader;
 import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
@@ -107,44 +107,40 @@ public class CommonUtil {
     /**
      * read config<br>
      * <pre>
-     *     1、classpath
-     *     2、/opt/autumn/
+     *     1、classpath（含 spring boot 可执行 jar 的 nested 资源）
+     *     2、${autumn.config.dir:-/opt/autumn}/
      * </pre>
      * @param filename
-     * @return
+     * @return 找不到时返回空配置，不抛异常
      */
     public static Properties readClasspath(String filename) {
-        if(mapping.containsKey(filename)) {
-            Properties properties = mapping.get(filename);
-            return properties;
+        Properties cached = mapping.get(filename);
+        if(Objects.nonNull(cached)) {
+            return cached;
         }
 
-        Path path = null;
-        URI uri = null;
-        URL url = CommonUtil.class.getClassLoader()
-                .getResource(filename);
-        if(Objects.isNull(url)) {
-            uri = new File("/opt/autumn/".concat(filename)).toURI();
-        } else {
-            try {
-                uri = url.toURI();
-            } catch (URISyntaxException e) {
-                log.info("url to uri exception: ", e);
-            }
-        }
-        path = Path.of(uri);
-        String content = "";
-        try {
-            content = Files.readString(path);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        Reader reader = new StringReader(content);
         Properties properties = new Properties();
-        try {
-            properties.load(reader);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        URL url = CommonUtil.class.getClassLoader().getResource(filename);
+        if(Objects.isNull(url)) {
+            String configDir = System.getProperty("autumn.config.dir", "/opt/autumn");
+            Path fallback = Path.of(configDir, filename);
+            if(Files.isReadable(fallback)) {
+                try (Reader reader = Files.newBufferedReader(fallback)) {
+                    properties.load(reader);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                log.warn("autumn config not found, classpath and {} both miss: {}", fallback, filename);
+            }
+        } else {
+            // 统一走 openStream：普通 jar 的 Path.of(uri) 会抛 FileSystemNotFoundException，nested jar 只有 stream 稳定可用
+            try (InputStream in = url.openStream();
+                 Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+                properties.load(reader);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         mapping.put(filename, properties);

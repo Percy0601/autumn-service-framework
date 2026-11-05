@@ -1,5 +1,6 @@
 package com.microapp.autumn.boot;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -7,9 +8,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
@@ -243,6 +247,7 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                     }
                 }
                 config.setPoolTimeout(10000L);
+                config.setConnectionTimeout(1000L);
                 config.setSocketTimeout(3000L);
                 AutumnConsumer.provider().reference(config);
                 Object proxy = createProxy(refer, fieldType);
@@ -260,9 +265,15 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
     private Object createProxy(String service, Class<?> iface) {
         InvocationHandler handler = (proxy, method, args) -> {
             if (method.getDeclaringClass() == Object.class) {
-                return method.invoke(this, args);
+                return switch (method.getName()) {
+                    case "equals" -> proxy == args[0];
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "toString" -> iface.getSimpleName() + "$autumnProxy@" + Integer.toHexString(System.identityHashCode(proxy));
+                    default -> method.invoke(this, args);
+                };
             }
             ConcurrentBagEntry entry = null;
+            boolean discard = false;
             try {
                 entry = AutumnPool.getInstance().borrow(service);
                 if (Objects.isNull(entry)) {
@@ -271,20 +282,42 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                 TTransport transport = entry.getEntry();
                 TProtocol protocol = new TBinaryProtocol(transport);
                 TMultiplexedProtocol multiplexedProtocol = new TMultiplexedProtocol(protocol, iface.getName());
-                String outer = iface.getName().substring(0, iface.getName().length() - THRIFT_IFACE_SUFFIX.length());
-                Class<?> clientClass = Class.forName(outer + "$Client");
-                Object client = clientClass.getConstructor(TProtocol.class).newInstance(multiplexedProtocol);
+                Object client = clientConstructor(iface).newInstance(multiplexedProtocol);
                 try {
                     return method.invoke(client, args);
                 } catch (InvocationTargetException e) {
                     throw e.getCause();
                 }
+            } catch (TException e) {
+                // 传输/协议异常后连接状态不可信，不能再放回池里
+                discard = true;
+                throw e;
             } finally {
                 if (Objects.nonNull(entry)) {
-                    AutumnPool.getInstance().requite(entry);
+                    if (discard) {
+                        AutumnPool.getInstance().discard(entry);
+                    } else {
+                        AutumnPool.getInstance().requite(entry);
+                    }
                 }
             }
         };
         return Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, handler);
+    }
+
+    /**
+     * thrift Client 构造器按 Iface 缓存，避免每次调用都 Class.forName + 反射查找
+     */
+    private static final Map<Class<?>, Constructor<?>> CLIENT_CONSTRUCTORS = new ConcurrentHashMap<>();
+
+    private Constructor<?> clientConstructor(Class<?> iface) {
+        return CLIENT_CONSTRUCTORS.computeIfAbsent(iface, type -> {
+            String outer = type.getName().substring(0, type.getName().length() - THRIFT_IFACE_SUFFIX.length());
+            try {
+                return Class.forName(outer + "$Client").getConstructor(TProtocol.class);
+            } catch (ClassNotFoundException | NoSuchMethodException e) {
+                throw new AutumnException("autumn thrift client class not found, iface:" + type.getName(), e);
+            }
+        });
     }
 }

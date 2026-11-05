@@ -42,6 +42,7 @@ public class ExtensionDiscovery implements Discovery {
      */
     private final Map<String, List<ConsumerConfig>> snapshots = new ConcurrentHashMap<>();
     private final AtomicBoolean running = new AtomicBoolean(false);
+    private volatile Thread worker;
 
     @Override
     public void watch(String name) {
@@ -85,6 +86,21 @@ public class ExtensionDiscovery implements Discovery {
         start();
     }
 
+    @Override
+    public void close() {
+        if (!running.compareAndSet(true, false)) {
+            return;
+        }
+        Thread worker = this.worker;
+        if (Objects.nonNull(worker)) {
+            worker.interrupt();
+        }
+        watched.clear();
+        registry.clear();
+        snapshots.clear();
+        log.info("autumn discovery closed.");
+    }
+
     private void start() {
         if (!running.compareAndSet(false, true)) {
             return;
@@ -98,6 +114,7 @@ public class ExtensionDiscovery implements Discovery {
         }
         Thread worker = new Thread(this::loop, "autumn-extension-discovery");
         worker.setDaemon(true);
+        this.worker = worker;
         worker.start();
         log.info("autumn discovery started, interval:{}ms", intervalMillis());
     }
