@@ -14,8 +14,8 @@ import lombok.Data;
  * autumn.multicast.port=5555
  * autumn.provider.enabled=true
  * autumn.provider.port=30880
- * autumn.provider.min-threads=0
- * autumn.provider.max-threads=1
+ * autumn.provider.min-threads=8
+ * autumn.provider.max-threads=32
  * autumn.provider.worker-keep-alive-time=60
  * autumn.provider.thread-queue-size=10
  * autumn.provider.timeout=3
@@ -60,6 +60,16 @@ public class AutumnProperties {
     private String traffic;
 
     /**
+     * multicast network interface name; when empty the interface owning the registered IP is used
+     */
+    private String multicastNetworkInterface;
+
+    /**
+     * consumer load balance strategy: round-robin / random / least-connections
+     */
+    private String loadBalance = "round-robin";
+
+    /**
      * provider config
      */
     private Provider provider = new Provider();
@@ -87,11 +97,11 @@ public class AutumnProperties {
         /**
          * worker executor min threads
          */
-        private Integer minThreads = 0;
+        private Integer minThreads = 8;
         /**
          * worker executor max threads
          */
-        private Integer maxThreads = 1;
+        private Integer maxThreads = 32;
         /**
          * worker keep alive time, unit second
          */
@@ -108,6 +118,18 @@ public class AutumnProperties {
          * provider bind ip, default auto detect
          */
         private String ip;
+        /**
+         * independent control plane port; 0 means control api shares the business port
+         */
+        private Integer controlPort = 0;
+        /**
+         * bind address of the independent control plane, loopback by default
+         */
+        private String controlHost = "127.0.0.1";
+        /**
+         * shared token required by control api invocations, empty disables authentication
+         */
+        private String controlToken;
     }
 
     @Data

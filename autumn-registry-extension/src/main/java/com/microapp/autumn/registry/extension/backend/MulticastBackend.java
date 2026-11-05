@@ -2,6 +2,8 @@ package com.microapp.autumn.registry.extension.backend;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -28,7 +30,8 @@ public final class MulticastBackend implements ServiceBackend {
 
     private final MulticastDiscovery multicast;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicBoolean published = new AtomicBoolean(false);
+    /** 已发布的实例 id 集合；按实例去重，不再用单个布尔量把进程内二次注册静默跳过 */
+    private final Set<String> published = ConcurrentHashMap.newKeySet();
 
     public MulticastBackend(MulticastConfig config) {
         this.multicast = new MulticastDiscovery(config);
@@ -51,6 +54,7 @@ public final class MulticastBackend implements ServiceBackend {
 
     @Override
     public void close() {
+        published.clear();
         multicast.close();
     }
 
@@ -72,19 +76,24 @@ public final class MulticastBackend implements ServiceBackend {
         @Override
         public void register(Registration registration) {
             ensureStarted();
-            if (!published.compareAndSet(false, true)) {
-                log.warn("multicast registration already published, skip. instanceId:{}", registration.getInstanceId());
+            String instanceId = registration.getInstanceId();
+            if (!published.add(instanceId)) {
+                log.warn("multicast registration already published, skip. instanceId:{}", instanceId);
                 return;
             }
             multicast.publish(toInstance(registration));
-            log.info("multicast registered, instanceId:{}, traffic:{}", registration.getInstanceId(),
+            log.info("multicast registered, instanceId:{}, traffic:{}", instanceId,
                     registration.getTraffic());
         }
 
         @Override
         public void deregister(String instanceId) {
-            // 组播通过 close 广播 bye 帧，主动摘除自身实例
-            multicast.close();
+            // 注销实例 ≠ 关闭通道：接收线程与发现侧必须继续可用。
+            // 组播后端没有单实例 bye 接口，远端实例由心跳超时剔除，这里只摘本地发布状态，
+            // 从而允许同 instanceId 后续重新注册。
+            if (published.remove(instanceId)) {
+                log.info("multicast deregistered locally, instanceId:{}, channel stays open, remote peers evict by heartbeat timeout", instanceId);
+            }
         }
 
         @Override
@@ -94,7 +103,8 @@ public final class MulticastBackend implements ServiceBackend {
 
         @Override
         public void close() {
-            multicast.close();
+            // 通道归 MulticastBackend 统一持有，registry client 关闭时不得连带关闭发现侧
+            published.clear();
         }
     }
 

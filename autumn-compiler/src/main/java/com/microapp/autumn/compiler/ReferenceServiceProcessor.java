@@ -1,16 +1,12 @@
 package com.microapp.autumn.compiler;
 
-import com.microapp.autumn.api.annotation.Reference;
-import com.microapp.autumn.compiler.model.MethodElement;
-import com.microapp.autumn.compiler.model.ReferenceEntry;
-import com.microapp.autumn.compiler.util.ClassNameUtil;
-import com.microapp.autumn.compiler.util.FreemarkerUtil;
-import com.microapp.autumn.compiler.util.MetaHolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Filer;
+import javax.annotation.processing.FilerException;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
@@ -23,32 +19,40 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.JavaFileObject;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.microapp.autumn.api.annotation.Reference;
+import com.microapp.autumn.compiler.model.MethodElement;
+import com.microapp.autumn.compiler.model.ReferenceEntry;
+import com.microapp.autumn.compiler.util.ClassNameUtil;
+import com.microapp.autumn.compiler.util.FreemarkerUtil;
+import com.microapp.autumn.compiler.util.MetaHolder;
+
+/**
+ * 为 {@code @Reference} 生成零反射客户端代理。
+ *
+ * <p>按 round 累积：每轮只生成本轮新收集到的接口，后续 round 出现的注解不会再被漏掉。</p>
+ */
 @SupportedAnnotationTypes(value = {"com.microapp.autumn.api.annotation.Reference"})
-@SupportedSourceVersion(value = SourceVersion.RELEASE_17)
+@SupportedSourceVersion(value = SourceVersion.RELEASE_25)
 public class ReferenceServiceProcessor extends AbstractProcessor {
+
     private static final String IFACE_SUFFIX = ".Iface";
     private static final String PROXY_SUFFIX = "Proxy";
-    private Logger log = LoggerFactory.getLogger(ReferenceServiceProcessor.class);
-    private Map<String, ReferenceEntry> mapping = new ConcurrentHashMap<>();
-    private final AtomicBoolean generated = new AtomicBoolean(false);
+
+    private final Logger log = LoggerFactory.getLogger(ReferenceServiceProcessor.class);
+    private final MetaHolder.State state = new MetaHolder.State();
+    private final Set<String> pending = new LinkedHashSet<>();
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
-        log.info("begin handle reference annotation.");
         for (TypeElement annotationElement : annotations) {
-            Set<? extends Element> annotatedElements = roundEnv.getElementsAnnotatedWith(annotationElement);
-            for (Element annotatedElement : annotatedElements) {
+            for (Element annotatedElement : roundEnv.getElementsAnnotatedWith(annotationElement)) {
                 collect(annotatedElement);
             }
         }
-        if (generated.compareAndSet(false, true)) {
+        if (!roundEnv.processingOver() && !pending.isEmpty()) {
             handleWrite();
         }
         return true;
@@ -61,7 +65,7 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
             return;
         }
         TypeMirror interfaceType = resolveInterfaceType(annotatedElement);
-        if (interfaceType == null || !(interfaceType instanceof DeclaredType)) {
+        if (!(interfaceType instanceof DeclaredType)) {
             log.warn("autumn @Reference element type must be a thrift Iface interface, skip. element:{}", annotatedElement);
             return;
         }
@@ -70,26 +74,29 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
             log.warn("autumn @Reference element type must end with Iface, skip. element:{}", annotatedElement);
             return;
         }
-        if (mapping.containsKey(ifaceName)) {
+        if (state.containsReference(ifaceName)) {
             return;
         }
         ReferenceEntry entry = new ReferenceEntry();
         entry.setInterfaceName(ifaceName);
         entry.setReferApplication(reference.refer());
         entry.setMethodElements(resolveMethods((DeclaredType) interfaceType));
-        mapping.put(ifaceName, entry);
-        MetaHolder.addReferService(ifaceName, entry);
+        state.addReferService(ifaceName, entry);
+        pending.add(ifaceName);
         log.info("autumn reference collect entry:{}, refer:{}", ifaceName, reference.refer());
     }
 
+    /**
+     * 字段注入取字段类型；方法注入优先取第一个参数（setter），无参时取返回类型（getter 风格）。
+     */
     private TypeMirror resolveInterfaceType(Element annotatedElement) {
         if (annotatedElement instanceof VariableElement) {
-            // @Reference field, type is the thrift Iface interface
             return ((VariableElement) annotatedElement).asType();
         }
         if (annotatedElement instanceof ExecutableElement) {
-            // @Reference on method, return type is the thrift Iface interface
-            return ((ExecutableElement) annotatedElement).getReturnType();
+            ExecutableElement method = (ExecutableElement) annotatedElement;
+            List<? extends VariableElement> params = method.getParameters();
+            return params.isEmpty() ? method.getReturnType() : params.get(0).asType();
         }
         return null;
     }
@@ -116,13 +123,17 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
     }
 
     private void handleWrite() {
-        ConcurrentHashMap<String, ReferenceEntry> referenceEntries = MetaHolder.getReferService();
-        referenceEntries.forEach((ifaceName, entry) -> {
+        for (String ifaceName : new ArrayList<>(pending)) {
+            pending.remove(ifaceName);
+            ReferenceEntry entry = state.getReferService().get(ifaceName);
+            if (entry == null) {
+                continue;
+            }
+            String ifaceOuterName = ifaceName.substring(0, ifaceName.length() - IFACE_SUFFIX.length());
+            String packageName = ClassNameUtil.getPackageName(ifaceOuterName);
+            String outerSimpleName = ClassNameUtil.getSimpleClassName(ifaceOuterName);
+            String generatedFullName = packageName + "._" + outerSimpleName + PROXY_SUFFIX;
             try {
-                String ifaceOuterName = ifaceName.substring(0, ifaceName.length() - IFACE_SUFFIX.length());
-                String packageName = ClassNameUtil.getPackageName(ifaceOuterName);
-                String outerSimpleName = ClassNameUtil.getSimpleClassName(ifaceOuterName);
-                String generatedFullName = packageName + "._" + outerSimpleName + PROXY_SUFFIX;
                 JavaFileObject builderFile = processingEnv.getFiler().createSourceFile(generatedFullName);
                 // must close the writer: javac skips generated sources whose writer is left open
                 try (java.io.Writer sourceWriter = builderFile.openWriter()) {
@@ -130,10 +141,11 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
                             entry.getReferApplication(), entry, sourceWriter);
                 }
                 log.info("autumn reference generate proxy class:{}, refer:{}", generatedFullName, entry.getReferApplication());
+            } catch (FilerException alreadyGenerated) {
+                log.debug("autumn reference proxy already generated:{}", generatedFullName);
             } catch (Exception e) {
-                log.warn("handleWrite Proxy Exception:", e);
+                log.warn("autumn reference write proxy exception, class:{}", generatedFullName, e);
             }
-        });
+        }
     }
-
 }

@@ -10,6 +10,7 @@ import org.apache.thrift.TServiceClient;
 
 import com.microapp.autumn.api.config.ConsumerConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
+import com.microapp.autumn.core.devops.AutumnMetrics;
 import com.microapp.autumn.core.pool.impl.ConcurrentBag;
 import com.microapp.autumn.core.pool.impl.ConcurrentBagEntry;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +80,9 @@ public final class AutumnPool implements AutoCloseable {
                 poolTimeout = config.getPoolTimeout();
             }
             ConcurrentBagEntry entry = bag.borrow(poolTimeout, TimeUnit.MILLISECONDS);
+            if (Objects.nonNull(entry)) {
+                AutumnMetrics.borrowed(service);
+            }
             return entry;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -93,6 +97,7 @@ public final class AutumnPool implements AutoCloseable {
         if(Objects.isNull(entry)) {
             return;
         }
+        AutumnMetrics.requited(entry.getService());
         ConcurrentBag bag = mapping.get(entry.getService());
         if(Objects.isNull(bag)) {
             // 池已关闭或配置已移除，连接没有归属，直接关闭
@@ -113,6 +118,7 @@ public final class AutumnPool implements AutoCloseable {
         if(Objects.isNull(entry)) {
             return;
         }
+        AutumnMetrics.discarded(entry.getService());
         ConcurrentBag bag = mapping.get(entry.getService());
         if(Objects.isNull(bag)) {
             try {
@@ -156,7 +162,7 @@ public final class AutumnPool implements AutoCloseable {
         if(Objects.isNull(bag)) {
             return;
         }
-        bag.remove(consumerConfig.getIp());
+        bag.remove(consumerConfig.getIp(), consumerConfig.getPort());
     }
 
     private void evict() {

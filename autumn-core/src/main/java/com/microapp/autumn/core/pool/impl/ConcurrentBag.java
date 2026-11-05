@@ -1,5 +1,6 @@
 package com.microapp.autumn.core.pool.impl;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,11 +17,13 @@ import org.apache.thrift.transport.TTransportException;
 import org.apache.thrift.transport.layered.TFramedTransport;
 
 import com.microapp.autumn.api.Discovery;
+import com.microapp.autumn.api.config.ApplicationConfig;
 import com.microapp.autumn.api.config.ConsumerConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.api.enums.RegistryTypeEnum;
 import com.microapp.autumn.api.util.AutumnException;
 import com.microapp.autumn.api.util.SpiUtil;
+import com.microapp.autumn.core.pool.LoadBalancer;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,6 +56,8 @@ public class ConcurrentBag implements AutoCloseable {
     private final AtomicInteger creating = new AtomicInteger(0);
 
     private final ReferenceConfig<? extends TServiceClient> config;
+    private final LoadBalancer loadBalancer =
+            new LoadBalancer(ApplicationConfig.getInstance().getConsumerLoadBalance());
 
     public ConcurrentBag(ReferenceConfig<? extends TServiceClient> config) {
         this.config = config;
@@ -193,14 +198,26 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     private List<ConsumerConfig> resolveInstances() {
+        List<ConsumerConfig> instances;
         if (RegistryTypeEnum.DIRECT == config.getRegistryTypeEnum()) {
-            return config.getInstances();
+            instances = config.getInstances();
+        } else {
+            Discovery discovery = SpiUtil.load(Discovery.class);
+            instances = Objects.isNull(discovery) ? null : discovery.getInstances(config.getName());
+            config.setInstances(instances);
         }
-        Discovery discovery = SpiUtil.load(Discovery.class);
-        List<ConsumerConfig> instances = Objects.isNull(discovery)
-                ? null : discovery.getInstances(config.getName());
-        config.setInstances(instances);
-        return instances;
+        // 按负载均衡策略旋转候选实例，扩容时轮流为各实例建连；归还走 sharedList FIFO，形成稳定轮询
+        return loadBalancer.order(instances, activeCounts());
+    }
+
+    private Map<String, Long> activeCounts() {
+        Map<String, Long> counts = new HashMap<>();
+        for (ConcurrentBagEntry entry : mapping.values()) {
+            if (entry.getState() == ConcurrentBagEntry.STATE_IN_USE) {
+                counts.merge(LoadBalancer.key(entry.getIp(), entry.getPort()), 1L, Long::sum);
+            }
+        }
+        return counts;
     }
 
     private int maxPoolSize() {
@@ -309,13 +326,16 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     /**
-     * 调用失败（协议可能已错位）时丢弃连接，不再归还池
+     * 调用失败（协议可能已错位）时丢弃连接，不再归还池。
+     * remove() 对借出中的连接只标记 REMOVED 并延迟关闭，而 discard 的持有者不会再 requite，
+     * 因此这里必须立即关闭；closeQuietly 幂等，与后续 requite 的兜底 close 不冲突。
      */
     public void discard(ConcurrentBagEntry entry) {
         if (Objects.isNull(entry)) {
             return;
         }
         remove(entry);
+        closeQuietly(entry);
     }
 
     @Override
@@ -365,9 +385,10 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     /**
-     * 实例下线：关闭空闲连接，借出中的连接只标记，等归还时关闭
+     * 实例下线：按 ip:port 精确摘除，避免同机多实例（不同端口）互相误删。
+     * port 为 null 时退化为按 ip 摘除，仅用于兼容旧调用。
      */
-    public void remove(String ip) {
+    public void remove(String ip, Integer port) {
         if (Objects.isNull(ip)) {
             return;
         }
@@ -375,8 +396,19 @@ public class ConcurrentBag implements AutoCloseable {
             if (!Objects.equals(ip, entry.getIp())) {
                 continue;
             }
+            if (Objects.nonNull(port) && !Objects.equals(port, entry.getPort())) {
+                continue;
+            }
             remove(entry);
         }
+    }
+
+    /**
+     * @deprecated 使用 {@link #remove(String, Integer)}，同机多实例必须带端口
+     */
+    @Deprecated
+    public void remove(String ip) {
+        remove(ip, null);
     }
 
     /**

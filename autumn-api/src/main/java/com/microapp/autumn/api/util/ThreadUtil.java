@@ -26,7 +26,7 @@ public class ThreadUtil {
 
     }
 
-    public ExecutorService getSingleExecutorService() {
+    public ScheduledExecutorService getSingleExecutorService() {
         return scheduledExecutorService;
     }
 

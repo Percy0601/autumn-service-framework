@@ -1,5 +1,6 @@
 package com.microapp.autumn.registry.extension;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +152,7 @@ public class ExtensionDiscovery implements Discovery {
             return;
         }
         List<ServiceInstance> found = RegistryBackends.shared().discoveryClient().getInstances(service);
+        found = filterByTraffic(found, applicationConfig.getTraffic());
         Map<String, ConsumerConfig> current = registry.computeIfAbsent(service, key -> new ConcurrentHashMap<>());
         Set<String> alive = new HashSet<>();
         long now = System.currentTimeMillis();
@@ -183,7 +185,29 @@ public class ExtensionDiscovery implements Discovery {
             log.info("autumn discovery instance removed, service:{}, instance:{}", service, entry.getKey());
             return true;
         });
-        snapshots.put(service, List.copyOf(current.values()));
+        // 稳定排序，保证轮询游标不会被 ConcurrentHashMap 的迭代顺序打乱
+        snapshots.put(service, current.values().stream()
+                .sorted(Comparator.comparing(config -> config.getIp() + ":" + config.getPort()))
+                .toList());
+    }
+
+    /**
+     * traffic 泳道筛选：排除其它泳道实例，保留同泳道实例与未打标的基线实例；
+     * 若过滤后为空则保留全部，避免泳道配置错误导致无可用实例。
+     */
+    private static List<ServiceInstance> filterByTraffic(List<ServiceInstance> found, String traffic) {
+        if (Objects.isNull(found) || found.isEmpty()) {
+            return List.of();
+        }
+        if (Objects.isNull(traffic) || traffic.isBlank()) {
+            return found;
+        }
+        List<ServiceInstance> eligible = found.stream()
+                .filter(instance -> Objects.isNull(instance.getTraffic())
+                        || instance.getTraffic().isBlank()
+                        || traffic.equalsIgnoreCase(instance.getTraffic()))
+                .toList();
+        return eligible.isEmpty() ? found : eligible;
     }
 
     private static long intervalMillis() {

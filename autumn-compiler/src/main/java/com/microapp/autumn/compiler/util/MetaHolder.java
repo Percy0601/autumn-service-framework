@@ -1,55 +1,58 @@
 package com.microapp.autumn.compiler.util;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import com.microapp.autumn.compiler.model.ExportEntry;
 import com.microapp.autumn.compiler.model.ReferenceEntry;
 
-import lombok.extern.slf4j.Slf4j;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-
 /**
- * compile-time metadata holder, shared between processors and freemarker templates.
+ * 编译期元数据容器。
+ *
+ * <p>状态按 processor 实例隔离（每个 processor 持有一个 {@link State}），不再使用静态可变字段，
+ * 避免同一 javac 进程内多模块/多编译单元复用时串数据；已移除无人使用的 serverPort 死字段。</p>
  */
-@Slf4j
-public class MetaHolder {
-    private static Integer serverPort = 8761;
-    private static ConcurrentHashMap<String, ExportEntry> exportEntries = new ConcurrentHashMap<>();
-    private static ConcurrentHashMap<String, ReferenceEntry> referenceServices = new ConcurrentHashMap<>();
+public final class MetaHolder {
 
     private MetaHolder() {
-
     }
 
-    public static void setServerPort(Integer _serverPort) {
-        serverPort = _serverPort;
-    }
+    public static final class State {
 
-    public static Integer getServerPort() {
-        return serverPort;
-    }
+        private final Map<String, ExportEntry> exportEntries = new LinkedHashMap<>();
+        private final Map<String, ReferenceEntry> referenceServices = new LinkedHashMap<>();
 
-    public static void addExportEntry(ExportEntry entry) {
-        if (exportEntries.containsKey(entry.getImplementName())) {
-            return;
+        public boolean containsExport(String implName) {
+            return exportEntries.containsKey(implName);
         }
-        exportEntries.put(entry.getImplementName(), entry);
-    }
 
-    public static List<ExportEntry> getExportEntries() {
-        return new ArrayList<>(exportEntries.values());
-    }
-
-    public static void addReferService(String referService, ReferenceEntry referServiceEntry) {
-        if (referenceServices.containsKey(referService)) {
-            return;
+        public void addExportEntry(ExportEntry entry) {
+            if (Objects.isNull(entry) || Objects.isNull(entry.getImplementName())) {
+                return;
+            }
+            exportEntries.putIfAbsent(entry.getImplementName(), entry);
         }
-        referenceServices.put(referService, referServiceEntry);
-    }
 
-    public static ConcurrentHashMap<String, ReferenceEntry> getReferService() {
-        return referenceServices;
-    }
+        public List<ExportEntry> getExportEntries() {
+            return new ArrayList<>(exportEntries.values());
+        }
 
+        public boolean containsReference(String ifaceName) {
+            return referenceServices.containsKey(ifaceName);
+        }
+
+        public void addReferService(String ifaceName, ReferenceEntry entry) {
+            if (Objects.isNull(ifaceName) || Objects.isNull(entry)) {
+                return;
+            }
+            referenceServices.putIfAbsent(ifaceName, entry);
+        }
+
+        public Map<String, ReferenceEntry> getReferService() {
+            return referenceServices;
+        }
+    }
 }

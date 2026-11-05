@@ -15,8 +15,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -85,8 +85,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${maven-compiler-plugin.version}</version>
                 <configuration>
-                    <source>${maven.compiler.source}</source>
-                    <target>${maven.compiler.target}</target>
+                    <release>${maven.compiler.release}</release>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
@@ -113,4 +112,35 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- GraalVM native: mvn -Pnative native:compile (JDK 25 / GraalVM 25) -->
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>com.microapp.autumn.sample.boot.provider.BootSampleBootstrap</mainClass>
+                            <imageName>autumn-sample-boot-provider-native</imageName>
+                            <buildArgs>
+                                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                                <!-- Spring Boot AOT 会覆盖 META-INF/native-image/<groupId>/<artifactId>/ 下的
+                                     reflect-config.json / resource-config.json，自定义 hints 放在独立目录并显式加载 -->
+                                <buildArg>-H:ReflectionConfigurationResources=META-INF/native-image/com.micro-app/autumn-native-hints/reflect-config.json</buildArg>
+                                <buildArg>-H:ResourceConfigurationResources=META-INF/native-image/com.micro-app/autumn-native-hints/resource-config.json</buildArg>
+                                <buildArg>-H:DynamicProxyConfigurationResources=META-INF/native-image/com.micro-app/autumn-native-hints/proxy-config.json</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

@@ -15,7 +15,7 @@ import lombok.ToString;
  */
 @Getter
 @Setter
-@ToString
+@ToString(exclude = {"controlToken"})
 public class ProviderConfig {
     private static volatile ProviderConfig instance;
     private String ip;
@@ -26,6 +26,18 @@ public class ProviderConfig {
     private Integer threadQueueSize;
     private Integer timeout;
     private Boolean enabled;
+    /**
+     * independent control plane port; 0 means control api shares the business thrift port
+     */
+    private Integer controlPort;
+    /**
+     * bind address of the independent control plane
+     */
+    private String controlHost;
+    /**
+     * shared token for control api, null/empty disables authentication
+     */
+    private String controlToken;
     /**
      * whether config already initialized, avoid classpath config overwrite spring config
      */
@@ -65,14 +77,14 @@ public class ProviderConfig {
             Integer _minThreads = Integer.valueOf(minThreadsValue);
             this.minThreads = _minThreads;
         } else {
-            this.minThreads = 0;
+            this.minThreads = 8;
         }
         String maxThreadsValue = properties.getProperty("provider.max-threads");
         if(Objects.nonNull(maxThreadsValue) && maxThreadsValue.length() > 0) {
             Integer _maxThreads = Integer.valueOf(maxThreadsValue);
             this.maxThreads = _maxThreads;
         } else {
-            this.maxThreads = 1;
+            this.maxThreads = 32;
         }
 
         String workerKeepAliveTimeValue = properties.getProperty("provider.worker-keep-alive-time");
@@ -103,6 +115,18 @@ public class ProviderConfig {
         } else {
             this.ip = CommonUtil.getHostIpAddress();
         }
+
+        String controlPortValue = properties.getProperty("provider.control-port");
+        this.controlPort = Integer.valueOf((Objects.isNull(controlPortValue) || controlPortValue.length() < 1)
+                ? "0" : controlPortValue);
+
+        String controlHostValue = properties.getProperty("provider.control-host");
+        this.controlHost = (Objects.isNull(controlHostValue) || controlHostValue.length() < 1)
+                ? "127.0.0.1" : controlHostValue;
+
+        String controlTokenValue = properties.getProperty("provider.control-token");
+        this.controlToken = (Objects.isNull(controlTokenValue) || controlTokenValue.length() < 1)
+                ? null : controlTokenValue;
         this.initialized = Boolean.TRUE;
     }
 }

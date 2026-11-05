@@ -130,12 +130,19 @@ Spring Boot 场景统一使用 `autumn.*` 前缀（由 `AutumnProperties` 绑定
 
 ## 构建
 
-JDK 21+，Maven 3.8+：
+JDK 25+（source/target/release 与 JSR 269 处理器均已统一到 25），Maven 3.8+：
 
 ```bash
 mvn clean install          # 全量构建 + 测试
 mvn -DskipTests clean install
+# GraalVM native image：先 install，再单独编译 sample provider
+mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
 ```
+
+> native 编译使用 GraalVM 25 作为 `JAVA_HOME`（`native-image` 由 `native-maven-plugin` 调用）；
+> Windows 下还需要 Visual Studio 2022 C++ 工具链（`cl.exe` / `link.exe` 在 `PATH`，`INCLUDE` / `LIB` 指向 MSVC 与 Windows SDK）。
+> 自定义反射与资源元数据位于 `META-INF/native-image/com.micro-app/autumn-native-hints/`
+> （Spring Boot AOT 会覆盖 `<groupId>/<artifactId>/` 同名配置，因此自定义 hints 放在独立目录并由 `native` profile 显式加载）。
 
 > 涉及 SPI（`META-INF/services`）变更后务必 `clean`，避免 `target/classes` 残留旧装配文件。
 

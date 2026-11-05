@@ -1,6 +1,6 @@
 # Autumn Framework 使用说明文档
 
-> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 21+ ｜ 更新日期：2026-11-04
+> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 25+ ｜ 更新日期：2026-11-06
 
 本手册覆盖 Autumn Framework（秋实框架）的接入、运行机制与全部配置项，包含：
 
@@ -562,14 +562,14 @@ mvn -DskipTests compile
 mvn test
 ```
 
-- JDK 21+、Maven 3.8+
+- JDK 25+、Maven 3.8+
 - 模块间通过 reactor 构建，`annotationProcessorPaths` 中的 SNAPSHOT 坐标会优先从 reactor 解析
 
 ## 11. 常见问题
 
 **Q1：Provider 注册的 IP 不对（如 127.0.0.1 / 容器内网 IP）？**
 
-显式配置 `provider.ip`（或 `autumn.provider.ip`）为对外可达地址。IP 探测顺序：网卡名匹配（Intel/Realtek/Atheros/Broadcom）→ 第一个启用非回环网卡 → localhost。
+显式配置 `provider.ip`（或 `autumn.provider.ip`）为对外可达地址。网卡选择统一由 `CommonUtil.getNetIf(preferred)` 完成：优先显式 `application.multicast.network-interface`，否则用注册 IP 反查持有该 IP 的网卡，保证注册 IP 与组播出口一致；未指定时退回物理网卡优先的启发式选择。
 
 **Q2：编译报 `NoClassDefFoundError`（如 `com/microapp/autumn/api/annotation/Reference`、`freemarker/template/Configuration`）？**
 

@@ -7,10 +7,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.thrift.TException;
@@ -19,8 +21,11 @@ import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.BeanPostProcessor;
+import org.springframework.util.ClassUtils;
 
 import com.microapp.autumn.api.annotation.Export;
 import com.microapp.autumn.api.annotation.Reference;
@@ -46,8 +51,8 @@ import lombok.extern.slf4j.Slf4j;
  * spring bean post processor, handle @Export and @Reference annotation.
  *
  * <pre>
- * 1、@Export: export spring bean as thrift service into AutumnBootstrap
- * 2、@Reference: inject runtime proxy into field, proxy borrows connection from AutumnPool
+ * 1、@Export: export spring bean as thrift service into AutumnBootstrap (AOP proxy aware)
+ * 2、@Reference: inject compile-time generated proxy (fallback to runtime JDK proxy)
  * </pre>
  *
  * @author: baoxin.zhao
@@ -55,6 +60,11 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class AutumnBeanPostProcessor implements BeanPostProcessor {
+
+    /** thrift generated interface is nested: binary name is like com.x.SomeService$Iface */
+    private static final String THRIFT_IFACE_SUFFIX = "$Iface";
+
+    private static final Map<Class<?>, Constructor<?>> CLIENT_CONSTRUCTORS = new ConcurrentHashMap<>();
 
     private final AutumnProperties properties;
 
@@ -64,71 +74,77 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
     }
 
     /**
-     * push spring environment config into autumn singleton config, must run before provider/consumer start
+     * push spring environment config into autumn singleton config, must run before provider/consumer start.
+     * null/blank values are skipped so setProperty never writes the literal string "null".
      */
     private void initConfigs(AutumnProperties properties) {
         if (Objects.isNull(properties)) {
             return;
         }
         Properties props = new Properties();
-        if (Objects.nonNull(properties.getName())) {
-            props.setProperty("application.name", properties.getName());
-        }
-        props.setProperty("application.registry-type", properties.getRegistryType());
-        props.setProperty("application.multicast.ip", properties.getMulticastIp());
-        props.setProperty("application.multicast.port", String.valueOf(properties.getMulticastPort()));
-        if (Objects.nonNull(properties.getDiscoveryInterval())) {
-            props.setProperty("registry.discovery-interval", String.valueOf(properties.getDiscoveryInterval()));
-        }
-        if (Objects.nonNull(properties.getTraffic()) && !properties.getTraffic().isBlank()) {
-            props.setProperty("application.traffic", properties.getTraffic());
-        }
+        put(props, "application.name", properties.getName());
+        put(props, "application.registry-type", properties.getRegistryType());
+        put(props, "application.multicast.ip", properties.getMulticastIp());
+        put(props, "application.multicast.port", properties.getMulticastPort());
+        put(props, "application.multicast.network-interface", properties.getMulticastNetworkInterface());
+        put(props, "application.traffic", properties.getTraffic());
+        put(props, "registry.discovery-interval", properties.getDiscoveryInterval());
+        put(props, "consumer.load-balance", properties.getLoadBalance());
+
         AutumnProperties.Provider provider = properties.getProvider();
         if (Objects.nonNull(provider)) {
-            props.setProperty("provider.enabled", String.valueOf(provider.getEnabled()));
-            props.setProperty("provider.port", String.valueOf(provider.getPort()));
-            props.setProperty("provider.min-threads", String.valueOf(provider.getMinThreads()));
-            props.setProperty("provider.max-threads", String.valueOf(provider.getMaxThreads()));
-            props.setProperty("provider.worker-keep-alive-time", String.valueOf(provider.getWorkerKeepAliveTime()));
-            props.setProperty("provider.thread-queue-size", String.valueOf(provider.getThreadQueueSize()));
-            props.setProperty("provider.timeout", String.valueOf(provider.getTimeout()));
-            if (Objects.nonNull(provider.getIp())) {
-                props.setProperty("provider.ip", provider.getIp());
-            }
+            put(props, "provider.enabled", provider.getEnabled());
+            put(props, "provider.port", provider.getPort());
+            put(props, "provider.min-threads", provider.getMinThreads());
+            put(props, "provider.max-threads", provider.getMaxThreads());
+            put(props, "provider.worker-keep-alive-time", provider.getWorkerKeepAliveTime());
+            put(props, "provider.thread-queue-size", provider.getThreadQueueSize());
+            put(props, "provider.timeout", provider.getTimeout());
+            put(props, "provider.ip", provider.getIp());
+            put(props, "provider.control-port", provider.getControlPort());
+            put(props, "provider.control-host", provider.getControlHost());
+            put(props, "provider.control-token", provider.getControlToken());
         }
         AutumnProperties.Consul consul = properties.getConsul();
         if (Objects.nonNull(consul)) {
-            props.setProperty("consul.register", String.valueOf(consul.getRegister()));
-            props.setProperty("consul.discovery", String.valueOf(consul.getDiscovery()));
-            props.setProperty("consul.health-check-interval", String.valueOf(consul.getHealthCheckInterval()));
-            props.setProperty("consul.host", String.valueOf(consul.getHost()));
-            props.setProperty("consul.port", String.valueOf(consul.getPort()));
-            if (Objects.nonNull(consul.getScheme())) {
-                props.setProperty("consul.scheme", consul.getScheme());
-            }
-            if (Objects.nonNull(consul.getToken())) {
-                props.setProperty("consul.token", consul.getToken());
-            }
-            if (Objects.nonNull(consul.getInstanceId())) {
-                props.setProperty("consul.instance-id", consul.getInstanceId());
-            }
-            if (Objects.nonNull(consul.getNamespace())) {
-                props.setProperty("consul.namespace", consul.getNamespace());
-            }
+            put(props, "consul.register", consul.getRegister());
+            put(props, "consul.discovery", consul.getDiscovery());
+            put(props, "consul.health-check-interval", consul.getHealthCheckInterval());
+            put(props, "consul.host", consul.getHost());
+            put(props, "consul.port", consul.getPort());
+            put(props, "consul.scheme", consul.getScheme());
+            put(props, "consul.token", consul.getToken());
+            put(props, "consul.instance-id", consul.getInstanceId());
+            put(props, "consul.namespace", consul.getNamespace());
         }
         AutumnProperties.Nacos nacos = properties.getNacos();
         if (Objects.nonNull(nacos)) {
-            props.setProperty("nacos.server-addr", nacos.getServerAddr());
-            props.setProperty("nacos.namespace", nacos.getNamespace());
-            props.setProperty("nacos.group", nacos.getGroup());
-            if (Objects.nonNull(nacos.getAccessToken())) {
-                props.setProperty("nacos.access-token", nacos.getAccessToken());
-            }
-            props.setProperty("nacos.beat-interval", String.valueOf(nacos.getBeatInterval()));
+            put(props, "nacos.server-addr", nacos.getServerAddr());
+            put(props, "nacos.namespace", nacos.getNamespace());
+            put(props, "nacos.group", nacos.getGroup());
+            put(props, "nacos.access-token", nacos.getAccessToken());
+            put(props, "nacos.beat-interval", nacos.getBeatInterval());
+        }
+        // control plane token is also exposed to ApplicationConfig for health/diagnostics
+        if (Objects.nonNull(provider)) {
+            put(props, "control.token", provider.getControlToken());
         }
         ApplicationConfig.getInstance().init(props);
         ProviderConfig.getInstance().init(props);
-        log.info("autumn config initialized: {}", props);
+        log.info("autumn config initialized, application:{}, registry:{}, providerPort:{}",
+                props.getProperty("application.name"), props.getProperty("application.registry-type"),
+                props.getProperty("provider.port"));
+    }
+
+    private static void put(Properties props, String key, Object value) {
+        if (Objects.isNull(value)) {
+            return;
+        }
+        String text = String.valueOf(value);
+        if (text.isBlank() || "null".equalsIgnoreCase(text)) {
+            return;
+        }
+        props.setProperty(key, text);
     }
 
     @Override
@@ -139,48 +155,36 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
     }
 
     /**
-     * thrift generated interface is nested: binary name is like com.microapp.autumn.sample.api.SomeService$Iface
-     */
-    private static final String THRIFT_IFACE_SUFFIX = "$Iface";
-
-    /**
      * export spring bean annotated with @Export as thrift service.
      * <p>
-     * priority: compile-time generated AutumnServiceAssembler (zero reflection, native image friendly),
-     * fallback to runtime reflection for beans without generated assembler.
+     * uses AopUtils.getTargetClass so CGLIB / JDK proxies keep their annotations and thrift Iface;
+     * generated assemblers are checked with the target class (isAssignableFrom) and only one match is exported.
      */
     private void exportService(Object bean) {
-        Class<?> beanClass = bean.getClass();
+        Class<?> targetClass = AopUtils.getTargetClass(bean);
         List<AutumnServiceAssembler> assemblers = SpiUtil.loads(AutumnServiceAssembler.class);
-        boolean exported = false;
-        if (assemblers != null && !assemblers.isEmpty()) {
+        if (Objects.nonNull(assemblers)) {
             for (AutumnServiceAssembler assembler : assemblers) {
                 try {
-                    if (assembler.supports(beanClass)) {
+                    if (assembler.supports(targetClass)) {
                         AutumnBootstrap.getInstance().service(assembler.build(bean));
-                        exported = true;
-                        log.info("autumn export service by generated assembler, bean:{}, assembler:{}", beanClass.getName(), assembler.getClass().getName());
+                        log.info("autumn export service by generated assembler, bean:{}, assembler:{}",
+                                targetClass.getName(), assembler.getClass().getName());
+                        return;
                     }
                 } catch (Exception e) {
-                    log.warn("autumn export service fail by generated assembler, bean:{}, assembler:{}", beanClass.getName(), assembler.getClass().getName(), e);
+                    log.warn("autumn export service fail by generated assembler, bean:{}, assembler:{}",
+                            targetClass.getName(), assembler.getClass().getName(), e);
                 }
             }
         }
-        if (exported) {
-            return;
-        }
-        boolean annotated = beanClass.isAnnotationPresent(Export.class);
-        List<Class<?>> ifaces = new ArrayList<>();
-        for (Class<?> itf : beanClass.getInterfaces()) {
-            if (itf.getName().endsWith(THRIFT_IFACE_SUFFIX)) {
-                ifaces.add(itf);
-            }
-        }
+        boolean annotated = targetClass.isAnnotationPresent(Export.class);
+        List<Class<?>> ifaces = thriftIfaces(targetClass);
         if (!annotated && ifaces.isEmpty()) {
             return;
         }
-        if (annotated && ifaces.isEmpty()) {
-            log.warn("autumn @Export bean has no thrift Iface interface, skip. bean:{}", beanClass.getName());
+        if (ifaces.isEmpty()) {
+            log.warn("autumn @Export bean has no thrift Iface interface, skip. bean:{}", targetClass.getName());
             return;
         }
         for (Class<?> iface : ifaces) {
@@ -192,84 +196,160 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                 config.setInterfaceClass(iface);
                 config.setRef(new AttachableProcessor((TProcessor) processor));
                 AutumnBootstrap.getInstance().service(config);
-                log.info("autumn export service, iface:{}, bean:{}", iface.getName(), beanClass.getName());
+                log.info("autumn export service, iface:{}, bean:{}", iface.getName(), targetClass.getName());
             } catch (Exception e) {
-                log.warn("autumn export service fail, iface:{}, bean:{}", iface.getName(), beanClass.getName(), e);
+                log.warn("autumn export service fail, iface:{}, bean:{}", iface.getName(), targetClass.getName(), e);
             }
         }
     }
 
+    private static List<Class<?>> thriftIfaces(Class<?> targetClass) {
+        List<Class<?>> ifaces = new ArrayList<>();
+        for (Class<?> itf : ClassUtils.getAllInterfacesForClassAsSet(targetClass)) {
+            if (itf.getName().endsWith(THRIFT_IFACE_SUFFIX)) {
+                ifaces.add(itf);
+            }
+        }
+        return ifaces;
+    }
+
     /**
-     * inject @Reference field with runtime proxy
+     * inject @Reference into declared fields of the whole class hierarchy and into setter methods.
      */
     private void injectReference(Object bean) {
-        Class<?> beanClass = bean.getClass();
-        for (Field field : beanClass.getDeclaredFields()) {
-            Reference reference = field.getAnnotation(Reference.class);
-            if (Objects.isNull(reference)) {
-                continue;
-            }
-            try {
-                field.setAccessible(true);
-                if (Objects.nonNull(field.get(bean))) {
+        Class<?> targetClass = AopUtils.getTargetClass(bean);
+        Object target = resolveTarget(bean);
+        injectFields(bean, target, targetClass);
+        injectMethods(bean, targetClass);
+    }
+
+    /** field injection must target the underlying object when the bean is an AOP proxy */
+    private static Object resolveTarget(Object bean) {
+        if (!AopUtils.isAopProxy(bean)) {
+            return bean;
+        }
+        Object singletonTarget = AopProxyUtils.getSingletonTarget(bean);
+        return Objects.isNull(singletonTarget) ? bean : singletonTarget;
+    }
+
+    private void injectFields(Object bean, Object target, Class<?> targetClass) {
+        for (Class<?> type = targetClass; Objects.nonNull(type) && type != Object.class; type = type.getSuperclass()) {
+            for (Field field : type.getDeclaredFields()) {
+                Reference reference = field.getAnnotation(Reference.class);
+                if (Objects.isNull(reference)) {
                     continue;
                 }
-                Class<?> fieldType = field.getType();
-                if (!fieldType.isInterface()) {
-                    log.warn("autumn @Reference field type must be interface, skip. bean:{}, field:{}", beanClass.getName(), field.getName());
-                    continue;
-                }
-                String refer = reference.refer();
-                if (Objects.isNull(refer) || refer.length() < 1) {
-                    refer = fieldType.getName();
-                }
-                ReferenceConfig<?> config = new ReferenceConfig<>();
-                config.setName(refer);
-                String ipPort = reference.ipPort();
-                if (Objects.nonNull(ipPort) && ipPort.length() > 0) {
-                    String[] parts = ipPort.split(":");
-                    if (parts.length == 2) {
-                        ConsumerConfig instance = new ConsumerConfig();
-                        instance.setName(refer);
-                        instance.setIp(parts[0]);
-                        instance.setPort(Integer.valueOf(parts[1]));
-                        config.setInstances(List.of(instance));
-                        config.setRegistryTypeEnum(RegistryTypeEnum.DIRECT);
+                try {
+                    Class<?> owner = field.getDeclaringClass();
+                    if (!owner.isInstance(target)) {
+                        log.warn("autumn @Reference field owner mismatch, skip. bean:{}, field:{}",
+                                targetClass.getName(), field.getName());
+                        continue;
                     }
-                } else {
-                    String registryType = ApplicationConfig.getInstance().getRegistryType();
-                    if ("consul".equalsIgnoreCase(registryType)) {
-                        config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
-                    } else if ("nacos".equalsIgnoreCase(registryType)) {
-                        config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
-                    } else {
-                        config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
+                    field.setAccessible(true);
+                    if (Objects.nonNull(field.get(target))) {
+                        continue;
                     }
+                    Class<?> fieldType = field.getType();
+                    if (!fieldType.isInterface()) {
+                        log.warn("autumn @Reference field type must be interface, skip. bean:{}, field:{}",
+                                targetClass.getName(), field.getName());
+                        continue;
+                    }
+                    String refer = resolveRefer(reference.refer(), fieldType);
+                    AutumnConsumer.provider().reference(buildReferenceConfig(refer, reference.ipPort()));
+                    field.set(target, createProxy(refer, fieldType));
+                    log.info("autumn inject reference, bean:{}, field:{}, refer:{}",
+                            targetClass.getName(), field.getName(), refer);
+                } catch (Exception e) {
+                    log.warn("autumn inject reference fail, bean:{}, field:{}", targetClass.getName(), field.getName(), e);
                 }
-                config.setPoolTimeout(10000L);
-                config.setConnectionTimeout(1000L);
-                config.setSocketTimeout(3000L);
-                AutumnConsumer.provider().reference(config);
-                Object proxy = createProxy(refer, fieldType);
-                field.set(bean, proxy);
-                log.info("autumn inject reference, bean:{}, field:{}, refer:{}", beanClass.getName(), field.getName(), refer);
-            } catch (Exception e) {
-                log.warn("autumn inject reference fail, bean:{}, field:{}", beanClass.getName(), field.getName(), e);
             }
         }
     }
 
+    private void injectMethods(Object bean, Class<?> targetClass) {
+        Set<String> handled = new HashSet<>();
+        for (Class<?> type = targetClass; Objects.nonNull(type) && type != Object.class; type = type.getSuperclass()) {
+            for (Method method : type.getDeclaredMethods()) {
+                Reference reference = method.getAnnotation(Reference.class);
+                if (Objects.isNull(reference) || !handled.add(method.getName() + "#" + method.getParameterCount())) {
+                    continue;
+                }
+                try {
+                    if (method.getParameterCount() != 1 || !method.getParameterTypes()[0].isInterface()) {
+                        log.warn("autumn @Reference method needs one interface parameter, skip. bean:{}, method:{}",
+                                targetClass.getName(), method.getName());
+                        continue;
+                    }
+                    Class<?> iface = method.getParameterTypes()[0];
+                    String refer = resolveRefer(reference.refer(), iface);
+                    AutumnConsumer.provider().reference(buildReferenceConfig(refer, reference.ipPort()));
+                    method.setAccessible(true);
+                    method.invoke(bean, createProxy(refer, iface));
+                    log.info("autumn inject reference method, bean:{}, method:{}, refer:{}",
+                            targetClass.getName(), method.getName(), refer);
+                } catch (Exception e) {
+                    log.warn("autumn inject reference method fail, bean:{}, method:{}",
+                            targetClass.getName(), method.getName(), e);
+                }
+            }
+        }
+    }
+
+    private static String resolveRefer(String refer, Class<?> iface) {
+        return Objects.isNull(refer) || refer.isEmpty() ? iface.getName() : refer;
+    }
+
+    private ReferenceConfig<?> buildReferenceConfig(String refer, String ipPort) {
+        ReferenceConfig<?> config = new ReferenceConfig<>();
+        config.setName(refer);
+        if (Objects.nonNull(ipPort) && !ipPort.isEmpty()) {
+            String[] parts = ipPort.split(":");
+            if (parts.length == 2) {
+                ConsumerConfig instance = new ConsumerConfig();
+                instance.setName(refer);
+                instance.setIp(parts[0]);
+                instance.setPort(Integer.valueOf(parts[1]));
+                config.setInstances(List.of(instance));
+                config.setRegistryTypeEnum(RegistryTypeEnum.DIRECT);
+            } else {
+                log.warn("autumn @Reference ipPort must be ip:port, ignore. value:{}", ipPort);
+            }
+        }
+        if (Objects.isNull(config.getRegistryTypeEnum())) {
+            String registryType = ApplicationConfig.getInstance().getRegistryType();
+            if ("consul".equalsIgnoreCase(registryType)) {
+                config.setRegistryTypeEnum(RegistryTypeEnum.CONSUL);
+            } else if ("nacos".equalsIgnoreCase(registryType)) {
+                config.setRegistryTypeEnum(RegistryTypeEnum.NACOS);
+            } else {
+                config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
+            }
+        }
+        config.setPoolTimeout(10000L);
+        config.setConnectionTimeout(1000L);
+        config.setSocketTimeout(3000L);
+        return config;
+    }
+
     /**
-     * create runtime proxy for thrift Iface interface, each invoke borrows connection from AutumnPool
+     * prefer compile-time generated _XxxProxy (zero reflection), fallback to runtime JDK proxy.
      */
     private Object createProxy(String service, Class<?> iface) {
+        Object generated = createGeneratedProxy(service, iface);
+        if (Objects.nonNull(generated)) {
+            return generated;
+        }
         InvocationHandler handler = (proxy, method, args) -> {
             if (method.getDeclaringClass() == Object.class) {
                 return switch (method.getName()) {
                     case "equals" -> proxy == args[0];
                     case "hashCode" -> System.identityHashCode(proxy);
-                    case "toString" -> iface.getSimpleName() + "$autumnProxy@" + Integer.toHexString(System.identityHashCode(proxy));
-                    default -> method.invoke(this, args);
+                    case "toString" -> iface.getSimpleName() + "$autumnProxy@"
+                            + Integer.toHexString(System.identityHashCode(proxy));
+                    // Object 的 final 方法（wait/notify/getClass）反射到 proxy 本身，不再打到 BPP 实例
+                    default -> method.invoke(proxy, args);
                 };
             }
             ConcurrentBagEntry entry = null;
@@ -305,11 +385,31 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
         return Proxy.newProxyInstance(iface.getClassLoader(), new Class<?>[]{iface}, handler);
     }
 
-    /**
-     * thrift Client 构造器按 Iface 缓存，避免每次调用都 Class.forName + 反射查找
-     */
-    private static final Map<Class<?>, Constructor<?>> CLIENT_CONSTRUCTORS = new ConcurrentHashMap<>();
+    private Object createGeneratedProxy(String service, Class<?> iface) {
+        String ifaceName = iface.getName();
+        if (!ifaceName.endsWith(THRIFT_IFACE_SUFFIX)) {
+            return null;
+        }
+        String outer = ifaceName.substring(0, ifaceName.length() - THRIFT_IFACE_SUFFIX.length());
+        int dot = outer.lastIndexOf('.');
+        String generatedName = outer.substring(0, dot + 1) + "_" + outer.substring(dot + 1) + "Proxy";
+        try {
+            Class<?> proxyClass = Class.forName(generatedName, true, iface.getClassLoader());
+            if (!iface.isAssignableFrom(proxyClass)) {
+                return null;
+            }
+            Object proxy = proxyClass.getConstructor(String.class).newInstance(service);
+            log.info("autumn use generated proxy:{}, service:{}", generatedName, service);
+            return proxy;
+        } catch (ClassNotFoundException e) {
+            return null;
+        } catch (Exception e) {
+            log.warn("autumn generated proxy unavailable, fallback to runtime proxy. class:{}", generatedName, e);
+            return null;
+        }
+    }
 
+    /** thrift Client 构造器按 Iface 缓存，避免每次调用都 Class.forName + 反射查找 */
     private Constructor<?> clientConstructor(Class<?> iface) {
         return CLIENT_CONSTRUCTORS.computeIfAbsent(iface, type -> {
             String outer = type.getName().substring(0, type.getName().length() - THRIFT_IFACE_SUFFIX.length());

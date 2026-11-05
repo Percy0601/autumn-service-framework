@@ -20,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Getter
-@ToString(exclude = {"consulToken", "nacosAccessToken"})
+@ToString(exclude = {"consulToken", "nacosAccessToken", "controlToken"})
 public class ApplicationConfig {
     private static volatile ApplicationConfig instance;
 
@@ -101,6 +101,14 @@ public class ApplicationConfig {
      * multicast network interface, auto detect when empty
      */
     private String multicastNetworkInterface;
+    /**
+     * consumer load balance strategy: round-robin / random / least-connections
+     */
+    private String consumerLoadBalance;
+    /**
+     * shared token for control plane, empty disables authentication
+     */
+    private String controlToken;
     public static ApplicationConfig getInstance() {
         if(Objects.isNull(instance)) {
             synchronized (ApplicationConfig.class) {
@@ -217,6 +225,14 @@ public class ApplicationConfig {
         String multicastNetworkInterfaceValue = properties.getProperty("application.multicast.network-interface");
         this.multicastNetworkInterface = (Objects.isNull(multicastNetworkInterfaceValue) || multicastNetworkInterfaceValue.length() < 1)
                 ? null : multicastNetworkInterfaceValue;
+
+        String loadBalanceValue = properties.getProperty("consumer.load-balance");
+        this.consumerLoadBalance = (Objects.isNull(loadBalanceValue) || loadBalanceValue.length() < 1)
+                ? "round-robin" : loadBalanceValue.trim();
+
+        String controlTokenValue = properties.getProperty("control.token");
+        this.controlToken = (Objects.isNull(controlTokenValue) || controlTokenValue.length() < 1)
+                ? null : controlTokenValue;
 
         RuntimeMXBean runtime = ManagementFactory.getRuntimeMXBean();
         String jvm = runtime.getVmName();

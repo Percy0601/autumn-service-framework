@@ -10,7 +10,10 @@ public final class _${simpleClassName}ServiceRegister implements com.microapp.au
 
     @Override
     public boolean supports(java.lang.Class<?> implClass) {
-        return implClass == ${implClassName}.class;
+        // isAssignableFrom 兼容 CGLIB 子类代理；Iface 兜底兼容 JDK 动态代理
+        return implClass != null
+                && (${implClassName}.class.isAssignableFrom(implClass)
+                    || ${ifaceName}.class.isAssignableFrom(implClass));
     }
 
     @Override

@@ -64,28 +64,47 @@ public class CommonUtil {
     }
 
     public static NetworkInterface getNetIf() {
+        return getNetIf(null);
+    }
+
+    /**
+     * 统一网卡选择：显式指定的网卡名 / 注册 IP 优先命中，保证「注册 IP」与「组播出口」在同一张网卡。
+     * 未指定时退回启发式（优先物理网卡，否则第一张可用网卡）。
+     *
+     * @param preferred 网卡名、displayName 或该网卡上的 IPv4 地址，可为空
+     */
+    public static NetworkInterface getNetIf(String preferred) {
+        boolean explicit = Objects.nonNull(preferred) && !preferred.isBlank();
         NetworkInterface fallback = null;
         try {
             Enumeration<NetworkInterface> allNetInterfaces = NetworkInterface.getNetworkInterfaces();
             while (allNetInterfaces.hasMoreElements()) {
-                NetworkInterface netInterface =  allNetInterfaces.nextElement();
+                NetworkInterface netInterface = allNetInterfaces.nextElement();
                 if (netInterface.isLoopback() || netInterface.isVirtual() || !netInterface.isUp()) {
                     continue;
                 }
-                Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
-                if(!addresses.hasMoreElements()) {
-                    continue;
+                if (explicit && (preferred.equals(netInterface.getName())
+                        || preferred.equals(netInterface.getDisplayName()))) {
+                    return netInterface;
                 }
+                Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
                 boolean hasIpv4 = false;
+                boolean ipMatches = false;
                 while (addresses.hasMoreElements()) {
                     InetAddress ip = addresses.nextElement();
-                    if (ip instanceof Inet4Address) {
-                        hasIpv4 = true;
-                        break;
+                    if (!(ip instanceof Inet4Address)) {
+                        continue;
+                    }
+                    hasIpv4 = true;
+                    if (explicit && (preferred.equals(ip.getHostAddress()) || preferred.equals(ip.getHostName()))) {
+                        ipMatches = true;
                     }
                 }
-                if(!hasIpv4) {
+                if (!hasIpv4) {
                     continue;
+                }
+                if (ipMatches) {
+                    return netInterface;
                 }
                 if (netInterface.getDisplayName().contains("Intel")
                         || netInterface.getDisplayName().contains("Realtek")
@@ -94,7 +113,7 @@ public class CommonUtil {
                     return netInterface;
                 }
                 // remember first eligible interface as fallback(e.g. macOS en0 with no vendor keyword)
-                if(Objects.isNull(fallback)) {
+                if (Objects.isNull(fallback)) {
                     fallback = netInterface;
                 }
             }
@@ -102,6 +121,14 @@ public class CommonUtil {
             log.warn("get network interfaces exception:", e);
         }
         return fallback;
+    }
+
+    /**
+     * 供注册中心使用的网卡名（MulticastConfig.networkInterface 按 NetworkInterface.getByName 解析）。
+     */
+    public static String resolveNetworkInterface(String preferred) {
+        NetworkInterface netInterface = getNetIf(preferred);
+        return Objects.isNull(netInterface) ? null : netInterface.getName();
     }
 
     /**

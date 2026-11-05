@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.microapp.autumn.api.config.ApplicationConfig;
+import com.microapp.autumn.api.config.ProviderConfig;
+import com.microapp.autumn.api.util.CommonUtil;
 
 import com.autumn.cloud.extension.core.api.ServiceDiscoveryClient;
 import com.autumn.cloud.extension.core.api.ServiceRegistryClient;
@@ -87,8 +89,20 @@ public final class RegistryBackends {
                     config.getMulticastIp(),
                     Objects.isNull(config.getMulticastPort()) ? 5555 : config.getMulticastPort(),
                     1, 0, 0,
-                    config.getMulticastNetworkInterface()));
+                    multicastNetworkInterface(config)));
         };
+    }
+
+    /**
+     * 网卡选择统一到 CommonUtil：显式 network-interface 优先，否则用注册 IP 反查网卡，
+     * 避免注册 IP 与组播出口落在不同网卡导致跨机发现不通。
+     */
+    private static String multicastNetworkInterface(ApplicationConfig config) {
+        String preferred = config.getMulticastNetworkInterface();
+        if (Objects.isNull(preferred) || preferred.isBlank()) {
+            preferred = ProviderConfig.getInstance().getIp();
+        }
+        return CommonUtil.resolveNetworkInterface(preferred);
     }
 
     /**

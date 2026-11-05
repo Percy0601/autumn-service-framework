@@ -1,14 +1,14 @@
 package com.microapp.autumn.compiler;
 
+import java.io.Writer;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
-import javax.annotation.processing.Messager;
+import javax.annotation.processing.FilerException;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
@@ -16,8 +16,6 @@ import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
@@ -32,112 +30,133 @@ import com.microapp.autumn.compiler.util.ClassResolverUtil;
 import com.microapp.autumn.compiler.util.FreemarkerUtil;
 import com.microapp.autumn.compiler.util.MetaHolder;
 
+/**
+ * 为 {@code @Export} 生成 AutumnServiceAssembler 与 SPI 注册文件。
+ *
+ * <p>按 round 累积生成：每一轮只写本轮新收集到的类型，后续 round 出现的注解不会再被漏掉；
+ * SPI 文件累积所有生成的 assembler 类名（不是实现类），多轮下也能完整覆盖。</p>
+ */
 @SupportedAnnotationTypes(value = {"com.microapp.autumn.api.annotation.Export"})
-@SupportedSourceVersion(value = SourceVersion.RELEASE_17)
+@SupportedSourceVersion(value = SourceVersion.RELEASE_25)
 public class ExportServiceProcessor extends AbstractProcessor {
+
     private static final String IFACE_SUFFIX = ".Iface";
     private static final String SERVICE_REGISTER_SUFFIX = "ServiceRegister";
     private static final String SERVICES_LOCATION = "META-INF/services";
     private static final String ASSEMBLER_INTERFACE = "com.microapp.autumn.api.extension.AutumnServiceAssembler";
-    private Logger log = LoggerFactory.getLogger(ExportServiceProcessor.class);
 
-    private Filer mFilerUtils;
-    private Types mTypesUtils;
-    private Elements mElementsUtils;
-    private Messager mMessager;
-    private Map<String, TargetClass> mapping = new ConcurrentHashMap<>();
-    private final AtomicBoolean generated = new AtomicBoolean(false);
+    private final Logger log = LoggerFactory.getLogger(ExportServiceProcessor.class);
+
+    private final MetaHolder.State state = new MetaHolder.State();
+    /** 本轮新收集、尚未生成源文件的实现类 */
+    private final Set<String> pending = new LinkedHashSet<>();
+    /** 跨 round 累积的 assembler FQN，只把生成类写进 SPI 文件 */
+    private final Set<String> generatedAssemblers = new LinkedHashSet<>();
+
+    private Filer filer;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnvironment) {
-        log.info("begin handle export annotation process init.");
         super.init(processingEnvironment);
-        mFilerUtils = processingEnv.getFiler();
-        mTypesUtils = processingEnv.getTypeUtils();
-        mElementsUtils = processingEnv.getElementUtils();
-        mMessager = processingEnv.getMessager();
+        this.filer = processingEnvironment.getFiler();
+        log.info("begin handle export annotation process init.");
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
         for (TypeElement annotationElement : annotations) {
-            Set<? extends Element> annotatedClasses = roundEnv.getElementsAnnotatedWith(annotationElement);
-            for (Element annotatedClass : annotatedClasses) {
+            for (Element annotatedClass : roundEnv.getElementsAnnotatedWith(annotationElement)) {
                 collect(annotatedClass);
             }
         }
-        if (generated.compareAndSet(false, true)) {
-            writeAll();
+        // 最后一轮不允许再创建源文件，只在有新增条目的普通 round 生成
+        if (!roundEnv.processingOver() && !pending.isEmpty()) {
+            writePending();
         }
         return true;
     }
 
     private void collect(Element annotatedClass) {
         TargetClass targetClass = ClassResolverUtil.handleExport(annotatedClass);
-        if (mapping.containsKey(targetClass.getFullName())) {
+        String implName = targetClass.getFullName();
+        if (state.containsExport(implName)) {
             return;
         }
-        mapping.put(targetClass.getFullName(), targetClass);
-
         List<String> interfaces = targetClass.getImplementList();
-        if (interfaces == null || interfaces.isEmpty()) {
-            log.warn("autumn export class has no interfaces, skip code generation. class:{}", targetClass.getFullName());
-            return;
-        }
-        String ifaceName = interfaces.stream()
+        String ifaceName = Objects.isNull(interfaces) ? null : interfaces.stream()
                 .filter(it -> it.endsWith(IFACE_SUFFIX))
                 .findFirst()
                 .orElse(null);
-        if (ifaceName == null) {
-            log.warn("autumn export class has no thrift Iface interface, skip code generation. class:{}", targetClass.getFullName());
+        if (Objects.isNull(ifaceName)) {
+            log.warn("autumn export class has no thrift Iface interface, skip code generation. class:{}", implName);
             return;
         }
         ExportEntry entry = new ExportEntry();
-        entry.setImplementName(targetClass.getFullName());
+        entry.setImplementName(implName);
         entry.setInterfaceName(ifaceName);
         entry.setName(targetClass.getName());
         entry.setMethods(targetClass.getMethods());
-        MetaHolder.addExportEntry(entry);
+        state.addExportEntry(entry);
+        pending.add(implName);
         log.info("autumn export collect entry:{}", entry);
     }
 
-    private void writeAll() {
-        List<ExportEntry> entries = MetaHolder.getExportEntries();
-        if (entries.isEmpty()) {
-            log.warn("autumn export entries empty, skip code generation.");
+    private void writePending() {
+        List<ExportEntry> entries = state.getExportEntries();
+        for (ExportEntry entry : entries) {
+            if (!pending.remove(entry.getImplementName())) {
+                continue;
+            }
+            String implFullName = entry.getImplementName();
+            String ifaceName = entry.getInterfaceName();
+            String packageName = ClassNameUtil.getPackageName(implFullName);
+            String simpleClassName = ClassNameUtil.getSimpleClassName(implFullName);
+            String ifaceOuterName = ifaceName.substring(0, ifaceName.length() - IFACE_SUFFIX.length());
+            String generatedFullName = packageName + "._" + simpleClassName + SERVICE_REGISTER_SUFFIX;
+            try {
+                JavaFileObject builderFile = filer.createSourceFile(generatedFullName);
+                // must close the writer: javac skips generated sources whose writer is left open
+                try (Writer sourceWriter = builderFile.openWriter()) {
+                    FreemarkerUtil.handleServer(packageName, simpleClassName, implFullName, ifaceName,
+                            ifaceOuterName, sourceWriter);
+                }
+                generatedAssemblers.add(generatedFullName);
+                log.info("autumn export generate register class:{}", generatedFullName);
+            } catch (FilerException alreadyGenerated) {
+                // 同一编译单元里同名源文件已由上一轮创建，忽略即可
+                log.debug("autumn export source already generated:{}", generatedFullName);
+            } catch (Exception e) {
+                log.warn("autumn export write source exception, class:{}", generatedFullName, e);
+            }
+        }
+        pending.clear();
+        writeSpi();
+    }
+
+    /**
+     * SPI 文件每轮重写为全量 assembler 列表；首次用 createResource，已存在则复用并覆盖写。
+     */
+    private void writeSpi() {
+        if (generatedAssemblers.isEmpty()) {
             return;
         }
+        String path = SERVICES_LOCATION + "/" + ASSEMBLER_INTERFACE;
         try {
-            StringBuilder services = new StringBuilder();
-            for (ExportEntry entry : entries) {
-                String implFullName = entry.getImplementName();
-                String ifaceName = entry.getInterfaceName();
-                if (ifaceName == null) {
-                    continue;
-                }
-                String packageName = ClassNameUtil.getPackageName(implFullName);
-                String simpleClassName = ClassNameUtil.getSimpleClassName(implFullName);
-                String ifaceOuterName = ifaceName.substring(0, ifaceName.length() - IFACE_SUFFIX.length());
-                String generatedFullName = packageName + "._" + simpleClassName + SERVICE_REGISTER_SUFFIX;
-                JavaFileObject builderFile = mFilerUtils.createSourceFile(generatedFullName);
-                // must close the writer: javac skips generated sources whose writer is left open
-                try (java.io.Writer sourceWriter = builderFile.openWriter()) {
-                    FreemarkerUtil.handleServer(packageName, simpleClassName, implFullName, ifaceName, ifaceOuterName, sourceWriter);
-                }
-                log.info("autumn export generate register class:{}", generatedFullName);
-                services.append(generatedFullName).append("\n");
+            FileObject servicesFile;
+            try {
+                servicesFile = filer.createResource(StandardLocation.CLASS_OUTPUT, "", path);
+            } catch (FilerException alreadyExists) {
+                // 已由本编译的上一轮创建（或增量编译残留），复用并全量覆盖
+                servicesFile = filer.getResource(StandardLocation.CLASS_OUTPUT, "", path);
             }
-            if (services.length() > 0) {
-                FileObject servicesFile = mFilerUtils.createResource(StandardLocation.CLASS_OUTPUT, "",
-                        SERVICES_LOCATION + "/" + ASSEMBLER_INTERFACE);
-                java.io.Writer writer = servicesFile.openWriter();
-                writer.write(services.toString());
-                writer.flush();
-                writer.close();
-                log.info("autumn export generate spi services file:{}", ASSEMBLER_INTERFACE);
+            try (Writer writer = servicesFile.openWriter()) {
+                for (String fqn : generatedAssemblers) {
+                    writer.write(fqn + "\n");
+                }
             }
+            log.info("autumn export generate spi services file:{}, assemblers:{}", path, generatedAssemblers.size());
         } catch (Exception e) {
-            log.warn("autumn export write source exception:", e);
+            log.warn("autumn export write spi exception:", e);
         }
     }
 }

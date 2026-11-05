@@ -2,8 +2,11 @@ package com.microapp.autumn.registry.extension.backend;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
@@ -20,6 +23,9 @@ import com.autumn.cloud.extension.core.model.InstanceSnapshot;
 
 /**
  * consul 后端：直连 Consul Agent HTTP API，TTL 健康检查由本地线程续约。
+ *
+ * <p>TTL 任务按 instanceId 管理：注销单个实例只取消它自己的续约，同进程其它实例心跳不受影响；
+ * 调度器的创建/替换在锁内完成，避免并发 register 覆盖引用导致旧线程泄漏。</p>
  */
 public final class ConsulBackend implements ServiceBackend {
 
@@ -30,6 +36,8 @@ public final class ConsulBackend implements ServiceBackend {
     private final ServiceRegistryClient registry = new ConsulRegistryClient();
     private final ServiceDiscoveryClient discovery = new ConsulDiscoveryClient();
 
+    private final Map<String, ScheduledFuture<?>> ttlTasks = new ConcurrentHashMap<>();
+    private final Object schedulerLock = new Object();
     private volatile ScheduledExecutorService ttlScheduler;
 
     public ConsulBackend(ConsulSettings settings) {
@@ -53,11 +61,47 @@ public final class ConsulBackend implements ServiceBackend {
         client.close();
     }
 
+    private void startTtl(String instanceId) {
+        synchronized (schedulerLock) {
+            ScheduledFuture<?> previous = ttlTasks.remove(instanceId);
+            if (Objects.nonNull(previous)) {
+                previous.cancel(false);
+            }
+            ScheduledExecutorService scheduler = this.ttlScheduler;
+            if (Objects.isNull(scheduler) || scheduler.isShutdown()) {
+                scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+                    Thread thread = new Thread(runnable, "autumn-consul-ttl");
+                    thread.setDaemon(true);
+                    return thread;
+                });
+                this.ttlScheduler = scheduler;
+            }
+            ttlTasks.put(instanceId, scheduler.scheduleAtFixedRate(() -> {
+                try {
+                    client.passCheck(instanceId);
+                } catch (Exception e) {
+                    log.warn("consul ttl pass failed, instanceId:{}, error:{}", instanceId, e.getMessage());
+                }
+            }, passIntervalMillis, passIntervalMillis, TimeUnit.MILLISECONDS));
+        }
+    }
+
+    private void stopTtl(String instanceId) {
+        ScheduledFuture<?> task = ttlTasks.remove(instanceId);
+        if (Objects.nonNull(task)) {
+            task.cancel(false);
+        }
+    }
+
     private void stopTtl() {
-        ScheduledExecutorService scheduler = this.ttlScheduler;
-        if (scheduler != null) {
-            scheduler.shutdownNow();
+        synchronized (schedulerLock) {
+            ttlTasks.forEach((instanceId, task) -> task.cancel(false));
+            ttlTasks.clear();
+            ScheduledExecutorService scheduler = this.ttlScheduler;
             this.ttlScheduler = null;
+            if (Objects.nonNull(scheduler)) {
+                scheduler.shutdownNow();
+            }
         }
     }
 
@@ -65,28 +109,16 @@ public final class ConsulBackend implements ServiceBackend {
 
         @Override
         public void register(Registration registration) {
-            client.register(toInstance(registration));
-            stopTtl();
-            ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
-                Thread thread = new Thread(runnable, "autumn-consul-ttl");
-                thread.setDaemon(true);
-                return thread;
-            });
             String instanceId = registration.getInstanceId();
-            scheduler.scheduleAtFixedRate(() -> {
-                try {
-                    client.passCheck(instanceId);
-                } catch (Exception e) {
-                    log.warn("consul ttl pass failed, instanceId:{}, error:{}", instanceId, e.getMessage());
-                }
-            }, passIntervalMillis, passIntervalMillis, TimeUnit.MILLISECONDS);
-            ttlScheduler = scheduler;
+            client.register(toInstance(registration));
+            startTtl(instanceId);
             log.info("consul registered, instanceId:{}, ttl:{}ms", instanceId, passIntervalMillis);
         }
 
         @Override
         public void deregister(String instanceId) {
-            stopTtl();
+            // 只停该实例的续约，同进程其它实例继续心跳
+            stopTtl(instanceId);
             try {
                 client.deregister(instanceId);
             } catch (Exception e) {
