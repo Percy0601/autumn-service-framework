@@ -220,29 +220,6 @@ public class ConcurrentBag implements AutoCloseable {
         return counts;
     }
 
-    /**
-     * traffic 泳道路由：消费方声明了 application.traffic 时只保留 label 相同的实例，
-     * 未声明时保留全部。泳道内无实例时回退全量，避免错误配置让服务整体不可用。
-     */
-    private List<ConsumerConfig> filterByTraffic(List<ConsumerConfig> found) {
-        if (Objects.isNull(found) || found.isEmpty()) {
-            return found;
-        }
-        String traffic = ApplicationConfig.getInstance().getTraffic();
-        if (Objects.isNull(traffic) || traffic.isBlank()) {
-            return found;
-        }
-        List<ConsumerConfig> matched = found.stream()
-                .filter(instance -> traffic.equals(instance.getLabel()))
-                .toList();
-        if (matched.isEmpty()) {
-            log.warn("autumn traffic lane has no matching instance, fallback to all. traffic:{}, service:{}",
-                    traffic, config.getName());
-            return found;
-        }
-        return matched;
-    }
-
     private int maxPoolSize() {
         Integer size = config.getMaxPoolSize();
         return Objects.isNull(size) || size <= 0 ? 32 : size;

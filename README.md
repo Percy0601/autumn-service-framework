@@ -25,6 +25,7 @@
 - **高性能**：`TThreadedSelectorServer` 线程池服务端 + HikariCP 风格连接池（`ConcurrentBag`），按服务隔离、borrow / requite 借还模型，支持动态伸缩
 - **多后端注册发现**：`multicast`（默认，开箱即用）/ `consul`（TTL 续约）/ `nacos`（临时实例心跳）/ `direct`（点对点直连）
 - **治理能力**：泳道标识（traffic）随实例元数据注册，支持灰度路由；每进程内置控制面 Thrift API（health / 运行信息 / 引用查询）
+- **隐式传参**：thrift `field-0` attachment 透传（traceId / tenant 等），通过 `AttachmentContext` 读写；新旧客户端/服务端双向兼容，GraalVM Native 下无需反射 hint
 - **云原生**：数据面 / 控制面分离，SPI + 资源声明齐备，为 GraalVM Native Image 做准备
 
 ## 模块

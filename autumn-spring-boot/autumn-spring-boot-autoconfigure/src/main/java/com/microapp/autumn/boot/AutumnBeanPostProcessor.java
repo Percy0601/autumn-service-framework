@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.TProcessor;
-import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
@@ -35,6 +34,7 @@ import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.api.config.ServiceConfig;
 import com.microapp.autumn.api.enums.RegistryTypeEnum;
+import com.microapp.autumn.api.extension.AttachableBinaryProtocol;
 import com.microapp.autumn.api.extension.AttachableProcessor;
 import com.microapp.autumn.api.extension.AutumnServiceAssembler;
 import com.microapp.autumn.api.util.AutumnException;
@@ -128,15 +128,6 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
         // control plane token is also exposed to ApplicationConfig for health/diagnostics
         if (Objects.nonNull(provider)) {
             put(props, "control.token", provider.getControlToken());
-        }
-        AutumnProperties.Control control = properties.getControl();
-        if (Objects.nonNull(control)) {
-            if (Objects.nonNull(control.getPort())) {
-                props.setProperty("control.port", String.valueOf(control.getPort()));
-            }
-            if (Objects.nonNull(control.getToken())) {
-                props.setProperty("control.token", control.getToken());
-            }
         }
         ApplicationConfig.getInstance().init(props);
         ProviderConfig.getInstance().init(props);
@@ -369,7 +360,7 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                     throw new AutumnException("autumn reference no available instance, service: " + service);
                 }
                 TTransport transport = entry.getEntry();
-                TProtocol protocol = new TBinaryProtocol(transport);
+                TProtocol protocol = new AttachableBinaryProtocol(transport);
                 TMultiplexedProtocol multiplexedProtocol = new TMultiplexedProtocol(protocol, iface.getName());
                 Object client = clientConstructor(iface).newInstance(multiplexedProtocol);
                 try {

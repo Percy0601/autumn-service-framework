@@ -7,7 +7,6 @@ import java.util.Objects;
 import org.apache.thrift.TApplicationException;
 import org.apache.thrift.TException;
 import org.apache.thrift.TServiceClient;
-import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TMultiplexedProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TSocket;
@@ -17,9 +16,9 @@ import org.apache.thrift.transport.layered.TFramedTransport;
 
 import com.microapp.autumn.api.ControlApi;
 import com.microapp.autumn.api.config.ApplicationConfig;
-import com.microapp.autumn.core.server.AutumnProvider;
 import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
+import com.microapp.autumn.api.extension.AttachableBinaryProtocol;
 import com.microapp.autumn.core.pool.AutumnPool;
 import com.microapp.autumn.core.server.AutumnProvider;
 
@@ -79,7 +78,7 @@ public class ControlApiImpl implements ControlApi.Iface {
             tsocket.setConnectTimeout(CHECK_CONNECT_TIMEOUT_MILLIS);
             tsocket.setTimeout(CHECK_SOCKET_TIMEOUT_MILLIS);
             transport = new TFramedTransport(tsocket);
-            TProtocol protocol = new TBinaryProtocol(transport);
+            TProtocol protocol = new AttachableBinaryProtocol(transport);
             transport.open();
             TMultiplexedProtocol multiplexedProtocol = new TMultiplexedProtocol(protocol, ControlApi.Iface.class.getName());
             ControlApi.Iface client = new ControlApi.Client(multiplexedProtocol);

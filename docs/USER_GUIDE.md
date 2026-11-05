@@ -303,7 +303,7 @@ public final class _SomeServiceProxy implements SomeService.Iface {
                 throw new AutumnException("autumn reference no available instance, service: " + service);
             }
             SomeService.Client client = new SomeService.Client(
-                    new TMultiplexedProtocol(new TBinaryProtocol(entry.getEntry()),
+                    new TMultiplexedProtocol(new AttachableBinaryProtocol(entry.getEntry()),
                             SomeService.Iface.class.getName()));
             return client.echo(msg);
         } finally {
@@ -316,6 +316,27 @@ public final class _SomeServiceProxy implements SomeService.Iface {
 ```
 
 生成类与 thrift 接口同包，可直接 `new _SomeServiceProxy("training-b")` 使用，也可等待后续版本接入 Spring 注入。
+
+### 4.5 隐式传参（attachment）
+
+框架在 thrift 请求消息头之后追加 `field-0` 的 `map<string,string>`，业务方法签名无需改动。生成代理（`_XxxProxy`）、Spring 运行时回退代理与控制面探测均已接入 `AttachableBinaryProtocol`。
+
+```java
+// 调用方：同一线程内设置，随 RPC 自动透传
+AttachmentContext.put("tenant", "acme");
+String result = someService.echo("hello");
+AttachmentContext.clear();
+
+// 服务端业务实现：读取隐式参数
+String tenant = AttachmentContext.get("tenant");
+Map<String, String> all = AttachmentContext.snapshot();
+```
+
+- 默认附带 `appId=15`、`appName=training-thrift` 与随机 `traceId` / `spanId`；调用方可覆盖同名键。
+- 服务端由 `AttachableProcessor` 在请求结束时清理线程上下文，线程池复用不会串扰。
+- **双向兼容**：旧客户端（`TBinaryProtocol`，无 field-0）可调用新服务端；新客户端可调用旧服务端（生成代码会跳过未知字段）。响应方向不写 attachment，不会覆盖调用方上下文。
+- **GraalVM native**：读取侧用 `readFieldBegin()` 顺带解析 field-0，不再反射访问 `TFramedTransport` / `TIOStreamTransport` 私有字段，无需额外反射 hint。
+- 自动化用例见 `autumn-core/src/test/java/com/microapp/autumn/core/extension/ImplicitAttachmentTest.java`（协议往返、双向兼容、响应 field-0、真实 TCP + multiplexed processor 透传）。
 
 ## 5. 配置文档
 
@@ -564,7 +585,6 @@ mvn test
 
 - JDK 25+、Maven 3.8+
 - 模块间通过 reactor 构建，`annotationProcessorPaths` 中的 SNAPSHOT 坐标会优先从 reactor 解析
-- GraalVM Native 构建（JDK 25 + native-image）：`./scripts/build-native.sh`，生成的反射/资源 hint 见 `META-INF/native-image/com.microapp.autumn/`
 
 ## 11. 常见问题
 

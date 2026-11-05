@@ -17,9 +17,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
-import javax.tools.StandardLocation;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -142,8 +140,6 @@ public class ReferenceServiceProcessor extends AbstractProcessor {
                     FreemarkerUtil.handleProxy(packageName, outerSimpleName, ifaceName, ifaceOuterName,
                             entry.getReferApplication(), entry, sourceWriter);
                 }
-                written.add(ifaceName);
-                generatedProxies.add(generatedFullName);
                 log.info("autumn reference generate proxy class:{}, refer:{}", generatedFullName, entry.getReferApplication());
             } catch (FilerException alreadyGenerated) {
                 log.debug("autumn reference proxy already generated:{}", generatedFullName);

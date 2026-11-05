@@ -1,38 +1,49 @@
 package com.microapp.autumn.api.extension;
 
-import java.io.BufferedInputStream;
-import java.lang.reflect.Field;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Random;
+import java.util.UUID;
 
 import org.apache.thrift.TException;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TField;
 import org.apache.thrift.protocol.TMap;
 import org.apache.thrift.protocol.TMessage;
+import org.apache.thrift.protocol.TMessageType;
 import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.protocol.TProtocolUtil;
 import org.apache.thrift.protocol.TType;
-import org.apache.thrift.transport.TIOStreamTransport;
-import org.apache.thrift.transport.TMemoryInputTransport;
 import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.layered.TFastFramedTransport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+/**
+ * 隐式传参协议：在 thrift 请求消息头之后追加 field-0 (MAP&lt;string,string&gt;) 作为 attachment。
+ *
+ * <p>读取侧不偷看、不重置流：field-0 由 {@link #readFieldBegin()} 在生成代码读取参数时顺带解析，
+ * 不再反射访问 TFramedTransport / TIOStreamTransport 的私有字段，GraalVM native 下无需额外 hint。
+ * 只在请求方向解析，避免把响应中 id=0 的 success 字段误判为 attachment。</p>
+ *
+ * <p>兼容性：旧客户端（TBinaryProtocol，无 field-0）与新客户端（带 field-0）都能被本服务端处理；
+ * 旧服务端会把 field-0 当作未知字段跳过，因此本客户端也能直连旧服务端。</p>
+ */
 public class AttachableBinaryProtocol extends TBinaryProtocol {
-    private Logger log = LoggerFactory.getLogger(this.getClass());
+
     private static final long NO_LENGTH_LIMIT = -1;
-    private Map<String, String> attachment;
+    private static final short ATTACHMENT_FIELD_ID = 0;
+    private static final String ATTACHMENT_FIELD_NAME = "attachment";
+    private static final String DEFAULT_APP_ID = "15";
+    private static final String DEFAULT_APP_NAME = "training-thrift";
+
+    private Map<String, String> attachment = new HashMap<>();
+    private boolean readingRequest;
 
     public AttachableBinaryProtocol(TTransport trans) {
         super(trans);
-        attachment = new HashMap<>();
     }
 
     public AttachableBinaryProtocol(TTransport trans, boolean strictRead, boolean strictWrite) {
         super(trans, strictRead, strictWrite);
-        attachment = new HashMap<>();
     }
 
     public AttachableBinaryProtocol(TTransport trans,
@@ -41,8 +52,8 @@ public class AttachableBinaryProtocol extends TBinaryProtocol {
                                     boolean strictRead,
                                     boolean strictWrite) {
         super(trans, stringLengthLimit, containerLengthLimit, strictRead, strictWrite);
-        attachment = new HashMap<>();
     }
+
     public static class Factory extends TBinaryProtocol.Factory {
         public Factory() {
             this(false, true);
@@ -59,177 +70,111 @@ public class AttachableBinaryProtocol extends TBinaryProtocol {
             strictWrite_ = strictWrite;
         }
 
+        @Override
         public TProtocol getProtocol(TTransport trans) {
             return new AttachableBinaryProtocol(trans, stringLengthLimit_, containerLengthLimit_, strictRead_, strictWrite_);
         }
     }
 
-    public void markTFramedTransport(TProtocol in) {
-        try {
-            Field tioInputStream = TIOStreamTransportFieldsCache.getInstance().getTIOInputStream();
-            if (tioInputStream == null){
-                return;
-            }
-            BufferedInputStream inputStream = (BufferedInputStream) tioInputStream.get(in.getTransport());
-            inputStream.mark(0);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
+    @Override
     public void writeMessageBegin(TMessage message) throws TException {
         super.writeMessageBegin(message);
-        Random r = new Random();
-        attachment.put("appId", "15");
-        attachment.put("appName", "training-thrift");
-        attachment.put("traceId", String.valueOf(r.nextInt(10000)));
-        attachment.put("spanId", String.valueOf(r.nextInt(100)));
-        if(attachment.size() > 0){
-            writeFieldZero();
-        }
-    }
-
-    public void writeFieldZero() throws TException{
-        TField ATTACHMENT = new TField("attachment", TType.MAP, (short) 0);
-        this.writeFieldBegin(ATTACHMENT);
-        {
-            this.writeMapBegin(new TMap(TType.STRING, TType.STRING, attachment.size()));
-            for (Map.Entry<String, String> entry: attachment.entrySet()) {
-                this.writeString(entry.getKey());
-                this.writeString(entry.getValue());
-            }
-            this.writeMapEnd();
-        }
-        this.writeFieldEnd();
-    }
-
-    public boolean readFieldZero() throws TException {
-        TField schemeField = this.readFieldBegin();
-        if (schemeField.id == 0 && schemeField.type == TType.MAP) {
-            TMap _map = this.readMapBegin();
-            attachment = new HashMap<>(_map.size);
-            for (int i = 0; i < _map.size; ++i) {
-                String key = this.readString();
-                String value = this.readString();
-                attachment.put(key, value);
-            }
-            this.readMapEnd();
-        }
-        this.readFieldEnd();
-        return attachment.size() > 0;
-    }
-
-    public void resetMultiTFramedTransport(TProtocol in) {
-        try {
-            Field readBuffer_ = TFramedTransportFieldsCache.getInstance()
-                    .getTFramedTransportReadBuffer();
-            Field buf_ = TFramedTransportFieldsCache.getInstance()
-                    .getTMemoryInputTransportBuf();
-            if (readBuffer_ == null || buf_ == null) {
-                return;
-            }
-            TMemoryInputTransport stream = (TMemoryInputTransport) readBuffer_.get(in.getTransport());
-            byte[] buf = (byte[]) (buf_.get(stream));
-            stream.reset(buf, 0, buf.length);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static class TFramedTransportFieldsCache {
-        private static TFramedTransportFieldsCache instance;
-        private final Field readBuffer_;
-        private final Field buf_;
-        private final String TFramedTransport_readBuffer_ = "readBuffer_";
-        private final String TMemoryInputTransport_buf_ = "buf_";
-
-        private TFramedTransportFieldsCache() throws Exception {
-            readBuffer_ = TFastFramedTransport.class
-                    .getDeclaredField(TFramedTransport_readBuffer_);
-            readBuffer_.setAccessible(true);
-            buf_ = TMemoryInputTransport.class
-                    .getDeclaredField(TMemoryInputTransport_buf_);
-            buf_.setAccessible(true);
-        }
-
-        public static TFramedTransportFieldsCache getInstance()
-                throws Exception {
-            if (instance == null) {
-                synchronized (TFramedTransportFieldsCache.class) {
-                    if (instance == null) {
-                        instance = new TFramedTransportFieldsCache();
-                    }
-                }
-            }
-            return instance;
-        }
-
-        public Field getTFramedTransportReadBuffer() {
-            return readBuffer_;
-        }
-
-        public Field getTMemoryInputTransportBuf() {
-            return buf_;
-        }
-    }
-
-    /*
-     * 重置TFramedTransport流，不影响Thrift原有流程
-     */
-    public void resetTFramedTransport(TProtocol in) {
-        try {
-            Field tioInputStream = TIOStreamTransportFieldsCache.getInstance().getTIOInputStream();
-            if (tioInputStream == null){
-                return;
-            }
-            BufferedInputStream inputStream = (BufferedInputStream) tioInputStream.get(in.getTransport());
-            inputStream.reset();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private static class TIOStreamTransportFieldsCache {
-        private static TIOStreamTransportFieldsCache instance;
-        private final Field inputStream_;
-        private final String TIOStreamTransport_inputStream_ = "inputStream_";
-
-        private TIOStreamTransportFieldsCache() throws Exception {
-            inputStream_ = TIOStreamTransport.class
-                    .getDeclaredField(TIOStreamTransport_inputStream_);
-            inputStream_.setAccessible(true);
-        }
-
-        public static TIOStreamTransportFieldsCache getInstance()
-                throws Exception {
-            if (instance == null) {
-                synchronized (TIOStreamTransportFieldsCache.class) {
-                    if (instance == null) {
-                        instance = new TIOStreamTransportFieldsCache();
-                    }
-                }
-            }
-            return instance;
-        }
-
-        public Field getTIOInputStream() {
-            return inputStream_;
+        // 响应方向不写 attachment：避免服务端回包覆盖调用方的隐式参数上下文
+        if (message.type == TMessageType.CALL || message.type == TMessageType.ONEWAY) {
+            writeAttachment(outboundAttachment());
         }
     }
 
     @Override
     public TMessage readMessageBegin() throws TException {
-        TMessage tMessage = super.readMessageBegin();
-        readFieldZero();
+        TMessage message = super.readMessageBegin();
+        readingRequest = message.type == TMessageType.CALL || message.type == TMessageType.ONEWAY;
+        if (readingRequest) {
+            // 连接复用时清掉上一次请求的解析结果，调用方上下文由 AttachableProcessor 管理
+            attachment = new HashMap<>();
+        }
+        return message;
+    }
 
-        resetMultiTFramedTransport(this);
-        tMessage = super.readMessageBegin();
-        return tMessage;
+    @Override
+    public TField readFieldBegin() throws TException {
+        TField field = super.readFieldBegin();
+        while (readingRequest && field.id == ATTACHMENT_FIELD_ID && field.type == TType.MAP) {
+            Map<String, String> values = readAttachmentMap();
+            attachment = values;
+            AttachmentContext.replace(values);
+            field = super.readFieldBegin();
+        }
+        return field;
+    }
+
+    private Map<String, String> outboundAttachment() {
+        Map<String, String> values = new LinkedHashMap<>(AttachmentContext.snapshot());
+        String trace = UUID.randomUUID().toString().replace("-", "");
+        values.putIfAbsent("appId", DEFAULT_APP_ID);
+        values.putIfAbsent("appName", DEFAULT_APP_NAME);
+        values.putIfAbsent("traceId", trace);
+        values.putIfAbsent("spanId", trace.substring(0, 8));
+        return values;
+    }
+
+    private void writeAttachment(Map<String, String> values) throws TException {
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        writeFieldBegin(new TField(ATTACHMENT_FIELD_NAME, TType.MAP, ATTACHMENT_FIELD_ID));
+        writeMapBegin(new TMap(TType.STRING, TType.STRING, values.size()));
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            writeString(entry.getKey());
+            writeString(entry.getValue());
+        }
+        writeMapEnd();
+        writeFieldEnd();
+    }
+
+    private Map<String, String> readAttachmentMap() throws TException {
+        TMap map = readMapBegin();
+        Map<String, String> values = new HashMap<>(Math.max(0, map.size));
+        for (int i = 0; i < map.size; ++i) {
+            if (map.keyType == TType.STRING && map.valueType == TType.STRING) {
+                values.put(readString(), readString());
+            } else {
+                // 非 string->string 的非法 attachment 只跳过，不打断业务参数读取
+                TProtocolUtil.skip(this, map.keyType);
+                TProtocolUtil.skip(this, map.valueType);
+            }
+        }
+        readMapEnd();
+        return values;
     }
 
     public Map<String, String> getAttachment() {
-        return attachment;
+        return Collections.unmodifiableMap(new HashMap<>(attachment));
+    }
+
+    /** 显式写出当前隐式参数；通常由 writeMessageBegin 自动完成。 */
+    public void writeFieldZero() throws TException {
+        writeAttachment(outboundAttachment());
+    }
+
+    /** @deprecated field-0 已由 readFieldBegin 自动解析，这里只返回解析结果，不再消费流。 */
+    @Deprecated
+    public boolean readFieldZero() {
+        return !attachment.isEmpty();
+    }
+
+    /** @deprecated 新版无需重置 framed transport 缓冲，保留空实现兼容旧调用。 */
+    @Deprecated
+    public void markTFramedTransport(TProtocol in) {
+    }
+
+    /** @deprecated 新版无需重置 framed transport 缓冲，保留空实现兼容旧调用。 */
+    @Deprecated
+    public void resetMultiTFramedTransport(TProtocol in) {
+    }
+
+    /** @deprecated 新版无需重置 framed transport 缓冲，保留空实现兼容旧调用。 */
+    @Deprecated
+    public void resetTFramedTransport(TProtocol in) {
     }
 }
-
-

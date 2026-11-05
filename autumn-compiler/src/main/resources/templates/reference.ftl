@@ -22,7 +22,7 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
                 throw new com.microapp.autumn.api.util.AutumnException("autumn reference no available instance, service: " + service);
             }
             org.apache.thrift.transport.TTransport transport = entry.getEntry();
-            org.apache.thrift.protocol.TProtocol protocol = new org.apache.thrift.protocol.TBinaryProtocol(transport);
+            org.apache.thrift.protocol.TProtocol protocol = new com.microapp.autumn.api.extension.AttachableBinaryProtocol(transport);
             org.apache.thrift.protocol.TMultiplexedProtocol multiplexedProtocol = new org.apache.thrift.protocol.TMultiplexedProtocol(protocol, ${ifaceName}.class.getName());
             ${outerName}.Client client = new ${outerName}.Client(multiplexedProtocol);
             <#if method.returnType == "void">

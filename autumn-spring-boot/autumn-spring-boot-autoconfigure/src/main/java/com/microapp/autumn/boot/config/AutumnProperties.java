@@ -84,11 +84,6 @@ public class AutumnProperties {
      */
     private Nacos nacos = new Nacos();
 
-    /**
-     * control plane (devops) config, optional; when port set, ControlApi serves on an independent thrift port
-     */
-    private Control control = new Control();
-
     @Data
     public static class Provider {
         /**
@@ -199,22 +194,5 @@ public class AutumnProperties {
          * ephemeral instance beat interval, unit millisecond, default 5000
          */
         private Integer beatInterval = 5000;
-    }
-
-    @Data
-    public static class Control {
-        /**
-         * independent management (control plane) thrift port, optional.
-         * when set, ControlApi is served on this dedicated port instead of being
-         * multiplexed into the business thrift server.
-         */
-        private Integer port;
-
-        /**
-         * access token for the control plane. when set together with an independent
-         * control port, the control server binds to loopback (127.0.0.1) only so it
-         * cannot be reached from other hosts without host access.
-         */
-        private String token;
     }
 }
