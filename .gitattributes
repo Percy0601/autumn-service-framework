@@ -1,0 +1,30 @@
+# 统一行尾策略：工作区（Windows）以 CRLF 检出，索引内统一存 LF。
+# 这样无论谁在什么平台上提交，仓库里的同一文件都只有一种行尾，diff 不再出现整文件重写。
+* text=auto
+
+# 源码与构建描述文件
+*.java        text eol=crlf
+*.xml         text eol=crlf
+*.properties  text eol=crlf
+*.ftl         text eol=crlf
+*.thrift      text eol=crlf
+*.md          text eol=crlf
+*.json        text eol=crlf
+
+# 脚本按各自平台约定
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+*.sh          text eol=lf
+*.yml         text eol=lf
+*.yaml        text eol=lf
+
+# 二进制，禁止任何行尾转换
+*.jar   binary
+*.zip   binary
+*.gz    binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
