@@ -143,4 +143,7 @@ gradle-app.setting
 *.iml
 .vscode/
 
+# staged executable jars for scripts/run-boot.sh
+/run/
+
 

@@ -138,7 +138,15 @@ mvn clean install          # 全量构建 + 测试
 mvn -DskipTests clean install
 # GraalVM native image：先 install，再单独编译 sample provider
 mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
+
+# 启动 sample（自动把可执行 jar 复制到 run/ 后运行，不占用 target/ 里的产物）
+./scripts/run-boot.sh autumn-sample-boot-provider --server.port=18080
+./scripts/run-boot.sh autumn-sample-boot-consumer --server.port=8081
 ```
+
+> Spring Boot 可执行 jar 以 `exec` classifier 输出为 `target/*-exec.jar`，主 jar 保持为可被依赖的普通 jar：
+> 不会覆盖正在运行的同名 jar、不会留下 `*.jar.original`。启动请用上面的脚本，避免 Windows 下
+> `java -jar target/xxx.jar` 锁住构建产物，导致后续 `mvn clean install` 在 `spring-boot:repackage` 阶段失败。
 
 > native 编译使用 GraalVM 25 作为 `JAVA_HOME`（`native-image` 由 `native-maven-plugin` 调用）；
 > Windows 下还需要 Visual Studio 2022 C++ 工具链（`cl.exe` / `link.exe` 在 `PATH`，`INCLUDE` / `LIB` 指向 MSVC 与 Windows SDK）。

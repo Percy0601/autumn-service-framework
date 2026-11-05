@@ -52,13 +52,14 @@
 ## 5. 复现方式
 
 ```bash
+# 0) 项目根目录构建一次（产出 target/*-exec.jar）
+mvn -DskipTests clean install
+
 # 1) 启动 thrift provider（30880 thrift / 8080 http 控制面）
-cd autumn-sample/autumn-sample-boot-provider
-mvn package -DskipTests && java -jar target/autumn-sample-boot-provider-1.0.0-SNAPSHOT.jar
+./scripts/run-boot.sh autumn-sample-boot-provider
 
 # 2) 启动 http provider（8083）
-cd autumn-spring-cloud-examples/autumn-spring-cloud-examples-provider
-mvn package -DskipTests && java -jar target/autumn-spring-cloud-examples-provider-1.0.0-SNAPSHOT.jar
+./scripts/run-boot.sh autumn-spring-cloud-examples-provider
 
 # 3) 运行 benchmarker（输出表格 + /tmp/benchmark_result.txt）
 cd autumn-sample/autumn-sample-benchmarker

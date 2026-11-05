@@ -581,9 +581,13 @@ mvn -DskipTests compile
 
 # 跑全部测试（含编译期生成链路集成测试）
 mvn test
+
+# 启动 Spring Boot sample（可执行 jar 的运行副本放到 run/，不锁 target/）
+./scripts/run-boot.sh autumn-sample-boot-provider --server.port=18080
 ```
 
 - JDK 25+、Maven 3.8+
+- 可执行 jar 为 `target/*-exec.jar`（`exec` classifier），主 jar 为普通 jar；重复 `package` 不会二次 repackage，也不产生 `*.jar.original`
 - 模块间通过 reactor 构建，`annotationProcessorPaths` 中的 SNAPSHOT 坐标会优先从 reactor 解析
 
 ## 11. 常见问题
@@ -618,6 +622,15 @@ SPI 文件来自 `META-INF/services`，删除或变更后**必须 `mvn clean`** 
 **Q7：Windows 上组播报 `Cannot assign requested address`？**
 
 旧版自研组播实现存在该问题，现已由 `autumn-cloud-extension` 修复（Windows 绑定通配地址）。若仍出现，请确认 `autumn-cloud-extension-common` 版本 ≥ 1.0.0-SNAPSHOT（2026-11-04 之后构建）。
+
+**Q8：Windows 上 `mvn clean install` 报 jar 被其它进程占用、`spring-boot:repackage` 失败？**
+
+根因是直接用 `java -jar target/xxx.jar` 启动：运行中的 JVM 会独占该 jar。现已两步规避：
+
+1. `spring-boot-maven-plugin` 统一配置 `exec` classifier，可执行包输出为 `target/*-exec.jar`，不再替换主 jar（顺带消除 `*.jar.original` 残留与二次 repackage）；
+2. 用 `./scripts/run-boot.sh <模块名> [参数...]` 启动，脚本把可执行 jar 复制到 `run/` 下的进程级唯一副本再运行，`target/` 始终无锁，随时可以重新构建；多实例（Consul 双 provider）也互不冲突。
+
+副本在进程退出时自动删除；被强杀留下的副本会在下次启动时清理。请勿再直接 `java -jar target/*.jar`。
 
 ## 12. 当前状态与 Roadmap
 

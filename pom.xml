@@ -181,4 +181,22 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <!-- 可执行 jar 作为独立 classifier 产物，不替换主 jar：
+             1) 不覆盖正在被 java -jar 运行的同名 jar（Windows 文件锁会让 clean / repackage 失败）；
+             2) 不再产生 *.jar.original 残留，重复 package 也不会二次 repackage；
+             3) install 到本地仓库的是可被其它模块依赖的普通 jar。 -->
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <classifier>exec</classifier>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
 </project>
