@@ -1,5 +1,6 @@
 package com.microapp.autumn.registry.extension.backend;
 
+import java.net.NetworkInterface;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;

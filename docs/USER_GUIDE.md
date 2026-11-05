@@ -564,6 +564,7 @@ mvn test
 
 - JDK 25+、Maven 3.8+
 - 模块间通过 reactor 构建，`annotationProcessorPaths` 中的 SNAPSHOT 坐标会优先从 reactor 解析
+- GraalVM Native 构建（JDK 25 + native-image）：`./scripts/build-native.sh`，生成的反射/资源 hint 见 `META-INF/native-image/com.microapp.autumn/`
 
 ## 11. 常见问题
 

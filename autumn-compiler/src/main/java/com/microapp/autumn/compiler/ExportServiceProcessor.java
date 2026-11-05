@@ -159,4 +159,16 @@ public class ExportServiceProcessor extends AbstractProcessor {
             log.warn("autumn export write spi exception:", e);
         }
     }
+
+    private static String buildReflectConfig(Set<String> classNames) {
+        StringBuilder json = new StringBuilder("[\n");
+        int index = 0;
+        for (String name : classNames) {
+            if (index++ > 0) {
+                json.append(",\n");
+            }
+            json.append("  {\"name\":\"").append(name).append("\",\"allPublicConstructors\":true}");
+        }
+        return json.append("\n]\n").toString();
+    }
 }

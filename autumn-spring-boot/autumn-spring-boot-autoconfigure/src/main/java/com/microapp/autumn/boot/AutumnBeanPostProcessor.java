@@ -129,6 +129,15 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
         if (Objects.nonNull(provider)) {
             put(props, "control.token", provider.getControlToken());
         }
+        AutumnProperties.Control control = properties.getControl();
+        if (Objects.nonNull(control)) {
+            if (Objects.nonNull(control.getPort())) {
+                props.setProperty("control.port", String.valueOf(control.getPort()));
+            }
+            if (Objects.nonNull(control.getToken())) {
+                props.setProperty("control.token", control.getToken());
+            }
+        }
         ApplicationConfig.getInstance().init(props);
         ProviderConfig.getInstance().init(props);
         log.info("autumn config initialized, application:{}, registry:{}, providerPort:{}",

@@ -17,6 +17,7 @@ import org.apache.thrift.transport.layered.TFramedTransport;
 
 import com.microapp.autumn.api.ControlApi;
 import com.microapp.autumn.api.config.ApplicationConfig;
+import com.microapp.autumn.core.server.AutumnProvider;
 import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.core.pool.AutumnPool;

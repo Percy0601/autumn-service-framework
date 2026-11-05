@@ -33,6 +33,7 @@ public final class ConsulBackend implements ServiceBackend {
 
     private final ConsulClient client;
     private final long passIntervalMillis;
+    private final Map<String, ScheduledFuture<?>> ttlFutures = new ConcurrentHashMap<>();
     private final ServiceRegistryClient registry = new ConsulRegistryClient();
     private final ServiceDiscoveryClient discovery = new ConsulDiscoveryClient();
 
@@ -57,7 +58,7 @@ public final class ConsulBackend implements ServiceBackend {
 
     @Override
     public void close() {
-        stopTtl();
+        stopAllTtl();
         client.close();
     }
 
@@ -105,6 +106,38 @@ public final class ConsulBackend implements ServiceBackend {
         }
     }
 
+    private void stopTtl(String instanceId) {
+        ScheduledFuture<?> future = ttlFutures.remove(instanceId);
+        if (future != null) {
+            future.cancel(true);
+        }
+    }
+
+    private void startTtl(String instanceId) {
+        ScheduledExecutorService scheduler = this.ttlScheduler;
+        if (scheduler == null) {
+            synchronized (this) {
+                scheduler = this.ttlScheduler;
+                if (scheduler == null) {
+                    scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+                        Thread thread = new Thread(runnable, "autumn-consul-ttl");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                    this.ttlScheduler = scheduler;
+                }
+            }
+        }
+        ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
+            try {
+                client.passCheck(instanceId);
+            } catch (Exception e) {
+                log.warn("consul ttl pass failed, instanceId:{}, error:{}", instanceId, e.getMessage());
+            }
+        }, passIntervalMillis, passIntervalMillis, TimeUnit.MILLISECONDS);
+        ttlFutures.put(instanceId, future);
+    }
+
     private final class ConsulRegistryClient implements ServiceRegistryClient {
 
         @Override
@@ -133,7 +166,7 @@ public final class ConsulBackend implements ServiceBackend {
 
         @Override
         public void close() {
-            stopTtl();
+            stopAllTtl();
         }
     }
 

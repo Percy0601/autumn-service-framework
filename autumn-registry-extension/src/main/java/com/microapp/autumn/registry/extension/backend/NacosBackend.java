@@ -107,6 +107,42 @@ public final class NacosBackend implements ServiceBackend {
         }
     }
 
+    private void stopBeat(String instanceId) {
+        ScheduledFuture<?> future = beatFutures.remove(instanceId);
+        if (future != null) {
+            future.cancel(true);
+        }
+    }
+
+    private void startBeat(String instanceId) {
+        ScheduledExecutorService scheduler = this.beatScheduler;
+        if (scheduler == null) {
+            synchronized (this) {
+                scheduler = this.beatScheduler;
+                if (scheduler == null) {
+                    scheduler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+                        Thread thread = new Thread(runnable, "autumn-nacos-beat");
+                        thread.setDaemon(true);
+                        return thread;
+                    });
+                    this.beatScheduler = scheduler;
+                }
+            }
+        }
+        InstanceRegistration instance = registrations.get(instanceId);
+        if (instance == null) {
+            return;
+        }
+        ScheduledFuture<?> future = scheduler.scheduleAtFixedRate(() -> {
+            try {
+                client.heartbeat(instance);
+            } catch (Exception e) {
+                log.warn("nacos heartbeat failed, instanceId:{}, error:{}", instanceId, e.getMessage());
+            }
+        }, beatIntervalMillis, beatIntervalMillis, TimeUnit.MILLISECONDS);
+        beatFutures.put(instanceId, future);
+    }
+
     private final class NacosRegistryClient implements ServiceRegistryClient {
 
         @Override

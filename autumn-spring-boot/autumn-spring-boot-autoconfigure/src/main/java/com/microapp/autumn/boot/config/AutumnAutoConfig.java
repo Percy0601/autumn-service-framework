@@ -4,10 +4,12 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.context.annotation.Role;
 
 import com.microapp.autumn.boot.AutumnBeanPostProcessor;
 import com.microapp.autumn.boot.AutumnLifecycle;
+import com.microapp.autumn.boot.aot.AutumnRuntimeHints;
 
 /**
  * autumn spring boot auto configuration.
@@ -22,6 +24,7 @@ import com.microapp.autumn.boot.AutumnLifecycle;
  * @date: 2026/11/3
  */
 @AutoConfiguration
+@ImportRuntimeHints(AutumnRuntimeHints.class)
 public class AutumnAutoConfig {
 
     @Bean
