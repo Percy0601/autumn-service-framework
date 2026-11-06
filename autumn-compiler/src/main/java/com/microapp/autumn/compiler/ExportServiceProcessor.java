@@ -29,6 +29,7 @@ import com.microapp.autumn.compiler.util.ClassNameUtil;
 import com.microapp.autumn.compiler.util.ClassResolverUtil;
 import com.microapp.autumn.compiler.util.FreemarkerUtil;
 import com.microapp.autumn.compiler.util.MetaHolder;
+import com.microapp.autumn.compiler.util.NativeImageMetadataWriter;
 
 /**
  * 为 {@code @Export} 生成 AutumnServiceAssembler 与 SPI 注册文件。
@@ -52,6 +53,8 @@ public class ExportServiceProcessor extends AbstractProcessor {
     private final Set<String> pending = new LinkedHashSet<>();
     /** 跨 round 累积的 assembler FQN，只把生成类写进 SPI 文件 */
     private final Set<String> generatedAssemblers = new LinkedHashSet<>();
+    /** 编译期产出的 native-image 反射元数据，导出侧只关心生成类与 thrift Processor */
+    private final NativeImageMetadataWriter nativeMetadata = new NativeImageMetadataWriter();
 
     private Filer filer;
 
@@ -121,6 +124,10 @@ public class ExportServiceProcessor extends AbstractProcessor {
                             ifaceOuterName, sourceWriter);
                 }
                 generatedAssemblers.add(generatedFullName);
+                // ServiceLoader 通过 Class.newInstance 实例化 assembler，反射元数据必须注册
+                nativeMetadata.constructors(generatedFullName);
+                // 兜底路径：AutumnBeanPostProcessor#exportService 里 Class.forName(outer + "$Processor")
+                nativeMetadata.constructors(ifaceOuterName + "$Processor");
                 log.info("autumn export generate register class:{}", generatedFullName);
             } catch (FilerException alreadyGenerated) {
                 // 同一编译单元里同名源文件已由上一轮创建，忽略即可
@@ -131,6 +138,18 @@ public class ExportServiceProcessor extends AbstractProcessor {
         }
         pending.clear();
         writeSpi();
+        writeNativeMetadata();
+    }
+
+    /**
+     * 编译期落盘 native-image 反射元数据（META-INF/native-image/com.micro-app/autumn-export-hints/），
+     * 随模块 jar 打包，native-image 构建时自动合并，宿主工程无需手写 reflect-config.json。
+     */
+    private void writeNativeMetadata() {
+        if (nativeMetadata.isEmpty()) {
+            return;
+        }
+        nativeMetadata.write(filer, "autumn-export-hints", log);
     }
 
     /**

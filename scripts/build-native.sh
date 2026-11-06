@@ -4,7 +4,15 @@
 # Prerequisites:
 #   - GraalVM JDK 25 with the native-image component (JAVA_HOME must point at it)
 #   - Maven 3.9+ on PATH
+#   - on Windows: Visual Studio 2022 C++ toolchain, and the shell must have run
+#     "...\VC\Auxiliary\Build\vcvars64.bat" (otherwise native-image reports
+#     "Failed to automatically set up Windows build environment")
 #   - a running Consul agent is only needed at runtime, not for the build
+#
+# Reflection / resource / dynamic-proxy metadata is generated at build time by the
+# JSR-269 processors (META-INF/native-image/com.micro-app/autumn-*-hints/) and by
+# Spring AOT RuntimeHints; no -H:*ConfigurationResources flags and no hand-written
+# reflect-config.json are needed.
 #
 # Usage:
 #   ./scripts/build-native.sh                       # spring-cloud-examples provider + consumer

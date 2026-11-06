@@ -148,7 +148,33 @@ public class CompilerTest {
         log.info("services content:{}", servicesContent);
         assertTrue(servicesContent.contains("com.sample.service._SomeServiceImplServiceRegister"), "services file should register generated assembler");
 
-        // 4. generated assembler works without reflection on thrift classes
+        // 4. native-image 元数据在编译期生成，无需手写 reflect-config.json
+        Path exportReflect = outDir.resolve("META-INF/native-image/com.micro-app/autumn-export-hints/reflect-config.json");
+        assertTrue(Files.exists(exportReflect), "export side reflect-config.json should be generated at compile time");
+        String exportReflectContent = Files.readString(exportReflect, StandardCharsets.UTF_8);
+        log.info("export reflect-config:{}", exportReflectContent);
+        assertTrue(exportReflectContent.contains("com.sample.service._SomeServiceImplServiceRegister"),
+                "generated assembler should be registered for ServiceLoader instantiation");
+
+        Path referenceReflect = outDir.resolve("META-INF/native-image/com.micro-app/autumn-reference-hints/reflect-config.json");
+        assertTrue(Files.exists(referenceReflect), "reference side reflect-config.json should be generated at compile time");
+        String referenceReflectContent = Files.readString(referenceReflect, StandardCharsets.UTF_8);
+        log.info("reference reflect-config:{}", referenceReflectContent);
+        assertTrue(referenceReflectContent.contains("com.sample.api._SomeServiceProxy"),
+                "generated proxy should be registered for Class.forName + getConstructor");
+        assertTrue(referenceReflectContent.contains("com.sample.api.SomeService$Client"),
+                "thrift Client should be registered for the reflective fallback path");
+        assertTrue(referenceReflectContent.contains("\"name\": \"someService\""),
+                "@Reference field should be registered");
+        assertTrue(referenceReflectContent.contains("\"allowWrite\": true"),
+                "@Reference field must be writable by Field.set");
+
+        Path referenceProxy = outDir.resolve("META-INF/native-image/com.micro-app/autumn-reference-hints/proxy-config.json");
+        assertTrue(Files.exists(referenceProxy), "proxy-config.json should be generated at compile time");
+        assertTrue(Files.readString(referenceProxy, StandardCharsets.UTF_8).contains("com.sample.api.SomeService$Iface"),
+                "thrift Iface should be registered for the JDK proxy fallback");
+
+        // 5. generated assembler works without reflection on thrift classes
         ClassLoader loader = new java.net.URLClassLoader(new java.net.URL[]{outDir.toUri().toURL()}, getClass().getClassLoader());
         Class<?> registerClazz = Class.forName("com.sample.service._SomeServiceImplServiceRegister", true, loader);
         Constructor<?> ctor = registerClazz.getDeclaredConstructor();

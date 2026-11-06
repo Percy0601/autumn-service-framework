@@ -150,8 +150,22 @@ mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
 
 > native 编译使用 GraalVM 25 作为 `JAVA_HOME`（`native-image` 由 `native-maven-plugin` 调用）；
 > Windows 下还需要 Visual Studio 2022 C++ 工具链（`cl.exe` / `link.exe` 在 `PATH`，`INCLUDE` / `LIB` 指向 MSVC 与 Windows SDK）。
-> 自定义反射与资源元数据位于 `META-INF/native-image/com.micro-app/autumn-native-hints/`
-> （Spring Boot AOT 会覆盖 `<groupId>/<artifactId>/` 同名配置，因此自定义 hints 放在独立目录并由 `native` profile 显式加载）。
+> 在普通 PowerShell / 非 VS 开发者命令行里构建时，先 `call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"` 再执行 Maven，否则 native-image 会报 "Failed to automatically set up Windows build environment"。
+
+**反射元数据全部在构建期产生，仓库里没有手写反射清单**：
+
+- autumn 自身：`@Export` / `@Reference` 的注解处理器在编译期把 `_XxxServiceRegister`、`_XxxProxy`、
+  `Xxx$Client`、`@Reference` 注入字段（`allowWrite`）、动态代理接口组写入
+  `target/classes/META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`，
+  随模块 jar 打包，native-image 构建时自动合并 —— 不需要 `-H:ReflectionConfigurationResources` /
+  `-H:DynamicProxyConfigurationResources` 手工加载，业务工程也不用维护反射清单。
+- 嵌入式 Tomcat：`TomcatWebServer#disableBindOnInit` 会反射调用 `AbstractProtocol#getProperty`，
+  而 `tomcat-embed-core` 10.1.x 在 GraalVM reachability metadata 仓库里只有 10.0.x 配置；
+  示例工程用 `TomcatNativeHints`（`RuntimeHintsRegistrar`，`@ImportRuntimeHints`）描述这批类型，
+  由 Spring AOT 在 `process-aot` 阶段并进元数据。
+- 应用 POJO 交给 Jackson：用 `@RegisterReflectionForBinding`（见 `BootSampleBootstrap`）。
+
+> 详见 [使用说明文档](docs/USER_GUIDE.md#44-编译期代码生成jsr-269)。
 
 > 涉及 SPI（`META-INF/services`）变更后务必 `clean`，避免 `target/classes` 残留旧装配文件。
 

@@ -131,11 +131,9 @@
                             <imageName>autumn-sample-boot-provider-native</imageName>
                             <buildArgs>
                                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
-                                <!-- Spring Boot AOT 会覆盖 META-INF/native-image/<groupId>/<artifactId>/ 下的
-                                     reflect-config.json / resource-config.json，自定义 hints 放在独立目录并显式加载 -->
-                                <buildArg>-H:ReflectionConfigurationResources=META-INF/native-image/com.micro-app/autumn-native-hints/reflect-config.json</buildArg>
-                                <buildArg>-H:ResourceConfigurationResources=META-INF/native-image/com.micro-app/autumn-native-hints/resource-config.json</buildArg>
-                                <buildArg>-H:DynamicProxyConfigurationResources=META-INF/native-image/com.micro-app/autumn-native-hints/proxy-config.json</buildArg>
+                                <!-- 反射/资源/动态代理元数据全部由 autumn-compiler 在编译期生成到
+                                     target/classes/META-INF/native-image/com.micro-app/autumn-*-hints/，
+                                     native-image 自动扫描 classpath 合并，无需 -H:*ConfigurationResources 手工加载 -->
                             </buildArgs>
                         </configuration>
                     </plugin>

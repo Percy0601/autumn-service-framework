@@ -315,7 +315,37 @@ public final class _SomeServiceProxy implements SomeService.Iface {
 }
 ```
 
-生成类与 thrift 接口同包，可直接 `new _SomeServiceProxy("training-b")` 使用，也可等待后续版本接入 Spring 注入。
+生成类与 thrift 接口同包，Spring 注入路径会优先使用它（`AutumnBeanPostProcessor#createGeneratedProxy` 通过 `Class.forName` 取得并 `new _XxxProxy(service)`），也可直接 `new _SomeServiceProxy("training-b")` 使用。
+
+#### Native Image 反射元数据（编译期生成 + AOT）
+
+注解处理器除了生成上面两类类，还会把 native-image 需要的元数据在**编译期**直接写进
+`target/classes/META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`：
+
+| 目录 | 内容 | 使用方 |
+| --- | --- | --- |
+| `autumn-export-hints/reflect-config.json` | 每个 `_XxxServiceRegister`（ServiceLoader 实例化）、`Xxx$Processor`（反射兜底） | `AutumnBeanPostProcessor#exportService` |
+| `autumn-reference-hints/reflect-config.json` | `_XxxProxy`（`Class.forName` + `getConstructor(String)`）、`Xxx$Client`（JDK 代理兜底）、`@Reference` 字段（`allowWrite: true`）/ setter 方法 | `AutumnBeanPostProcessor#injectReference` / `#createProxy` |
+| `autumn-reference-hints/proxy-config.json` | `Xxx$Iface` 动态代理接口组 | `Proxy.newProxyInstance` 兜底路径 |
+
+要点：
+
+- 这些 json 随模块 jar 打包，native-image 构建时自动扫描 classpath 合并，**不需要** `-H:ReflectionConfigurationResources` 之类的手工加载参数，也不需要在业务工程里维护反射清单。
+- 反射元数据里的类名必须是**二进制名**（`SomeService$Iface`）；处理器用 `Elements#getBinaryName` 生成，避免写出源码形态 `SomeService.Iface` 而注册不到。
+- `@Reference` 字段必须带 `allowWrite`，因为注入走 `field.setAccessible(true) + field.set(...)`。
+- 同一个 `Iface` 被多处 `@Reference` 引用时，每个注入点的字段都会登记（`Iface` 维度的去重只影响代码生成，不影响元数据）。
+- 处理器覆盖不到的部分在示例工程里这样处理（构建期产生，不落 json）：
+  - 嵌入式 Tomcat：`TomcatWebServer#disableBindOnInit` 会反射调用 `AbstractProtocol#getProperty`，
+    而 `tomcat-embed-core` 10.1.x 在 GraalVM reachability metadata 仓库里只能回落到 10.0.x 配置 →
+    示例工程用 `TomcatNativeHints implements RuntimeHintsRegistrar` + `@ImportRuntimeHints` 声明这批
+    `allPublicMethods` / `allDeclaredConstructors` 类型与 `LocalStrings` 资源包，Spring AOT 在
+    `process-aot` 阶段把它们并进 `<groupId>/<artifactId>/` 下的元数据。
+  - 应用自己的 POJO 交给 Jackson 序列化：用 `@RegisterReflectionForBinding(User.class)`
+    （见 `BootSampleBootstrap`），不要回到手写 json。
+- 结论：`autumn-sample-boot-provider` 的 `src/main/resources/META-INF/native-image/` 已清空，
+  native 镜像只依赖「注解处理器生成的 hints + Spring AOT hints」；实测 native 启动 0.08s，
+  `/hello`（thrift 自环）、`/greet`、`/listUserIds`、`/getUser`（Jackson 序列化 POJO）全部 200。
+- 排查手法：native 运行时报 `MissingReflectionRegistrationError` 时，异常本身会打印可直接粘贴的 json 片段，按上面三类归属补到对应位置即可。
 
 ### 4.5 隐式传参（attachment）
 
@@ -613,7 +643,15 @@ mvn test
 
 **Q5：能否用 Native Image？**
 
-框架调用面已零反射（JSR-269 生成代码 + SPI），注册发现实现零 SDK 依赖（原生 HTTP / JDK 组播），`autumn-registry-extension` 已内置 `META-INF/native-image` 资源声明；Native Image 全链路（含 Spring AOT）仍在验证中，暂不用于生产。
+框架调用面已零反射（JSR-269 生成代码 + SPI），注册发现实现零 SDK 依赖（原生 HTTP / JDK 组播）。native-image 需要的反射 / 动态代理 / 资源元数据在**构建期**全部就绪，仓库里没有手写 hints：
+
+- `@Export` / `@Reference` 注解处理器在编译期写出 `META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`（装配器、`_XxxProxy`、`Xxx$Client`、注入字段 `allowWrite`、`Iface` 动态代理组），随 jar 打包，`native-image` 自动合并，无需 `-H:*ConfigurationResources`（详见 [4.4](#44-编译期代码生成jsr-269)）；
+- 框架已知的资源与 SPI 契约由 `AutumnRuntimeHints`（`@ImportRuntimeHints`）在 Spring AOT 阶段登记；
+- 三方 / 应用侧反射用 `RuntimeHintsRegistrar`、`@RegisterReflectionForBinding` 补齐（示例：`TomcatNativeHints`、`BootSampleBootstrap`）。
+
+`autumn-sample-boot-provider` 已在本机以 GraalVM 25（Oracle GraalVM 25.4.4.1.1+1.1）native 镜像跑通：冷启动 0.08s，
+`/hello`（进程内 thrift 自环调用）、`/greet`、`/listUserIds`、`/getUser`（Jackson 序列化 thrift POJO）全部 200。
+尚未接入 native 构建的 CI，consumer 侧示例与生产验证仍未完成。
 
 **Q6：切换 / 删除注册中心实现后行为没变？**
 
