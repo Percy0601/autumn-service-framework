@@ -1,5 +1,8 @@
 package com.microapp.autumn.sample.boot.provider.service;
 
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 
 import org.apache.thrift.TException;
@@ -34,8 +37,11 @@ public class SomeServiceImpl implements SomeService.Iface {
     @Override
     public String echo(String msg) throws TException {
         // 带上实例端口与隐式参数，便于多实例 / 负载均衡 / 隐式传参回归验证
-        return "Hello, " + msg + " [node:" + ProviderConfig.getInstance().getPort()
-                + "] [tenant:" + AttachmentContext.get("tenant") + "]";
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+
+        String result = "Hello, " + msg + " [node:" + ProviderConfig.getInstance().getPort()
+                + "] [tenant:" + AttachmentContext.get("tenant") + "] [time:" + sdf.format(new Date()) + "]";
+        return result;
     }
 
     @Override
