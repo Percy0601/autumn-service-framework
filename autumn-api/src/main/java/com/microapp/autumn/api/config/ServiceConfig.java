@@ -2,8 +2,6 @@ package com.microapp.autumn.api.config;
 
 import org.apache.thrift.TProcessor;
 
-import com.microapp.autumn.api.extension.AttachableProcessor;
-
 import lombok.Data;
 
 /**

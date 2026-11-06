@@ -1,0 +1,44 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>autumn-service-framework</artifactId>
+        <groupId>com.micro-app</groupId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <modules>
+        <module>autumn-sample-api</module>
+        <module>autumn-sample-boot-native-hints</module>
+        <module>autumn-sample-basic-consumer</module>
+        <module>autumn-sample-basic-provider</module>
+        <module>autumn-sample-boot-consumer</module>
+        <module>autumn-sample-boot-provider</module>
+        <module>autumn-sample-benchmarker</module>
+        <module>autumn-spring-cloud-examples</module>
+    </modules>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>autumn-samples</artifactId>
+    <packaging>pom</packaging>
+
+    <name>autumn-samples</name>
+    <url>http://maven.apache.org</url>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+    </properties>
+
+    <dependencies>
+
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.micro-app</groupId>
+                <artifactId>autumn-spring-boot-autoconfigure</artifactId>
+                <version>1.0.0-SNAPSHOT</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

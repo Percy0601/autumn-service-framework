@@ -1,5 +1,8 @@
 package com.microapp.autumn.boot.config;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import lombok.Data;
@@ -58,6 +61,21 @@ public class AutumnProperties {
      * instance traffic label, used for grey routing, empty means unlabeled
      */
     private String traffic;
+
+    /**
+     * implicit attachment keys carrying the invocation lane, ordered by priority
+     */
+    private String trafficParameter = "traffic,X-Traffic";
+
+    /**
+     * whether a lane without matching instances falls back to the main lane
+     */
+    private Boolean trafficFallback = Boolean.TRUE;
+
+    /**
+     * extra labels published into registry metadata, matched by label.&lt;key&gt; attachments
+     */
+    private Map<String, String> labels = new LinkedHashMap<>();
 
     /**
      * multicast network interface name; when empty the interface owning the registered IP is used

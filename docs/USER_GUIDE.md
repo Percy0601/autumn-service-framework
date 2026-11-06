@@ -35,7 +35,8 @@ Autumn Framework 是一个基于 **Apache Thrift** 的服务治理框架，定�
 
 | 模块 | 坐标 | 职责 |
 | --- | --- | --- |
-| `autumn-api` | `com.micro-app:autumn-api` | 注解、配置类、扩展点、工具类、控制面 Thrift 定义 |
+| `autumn-api` | `com.micro-app:autumn-api` | 注解、配置类、工具类、控制面 Thrift 定义 |
+| `autumn-protocol-extension` | `com.micro-app:autumn-protocol-extension` | 协议扩展：隐式传参（field-0 attachment）、`TrafficRouter` 泳道路由、SPI 扩展点 |
 | `autumn-compiler` | `com.micro-app:autumn-compiler` | JSR-269 注解处理器 + FreeMarker 模板（编译期生成代码） |
 | `autumn-core` | `com.micro-app:autumn-core` | 运行时核心：`AutumnBootstrap`、Provider/Consumer、连接池、控制面实现 |
 | `autumn-registry-extension` | `com.micro-app:autumn-registry-extension` | 注册中心适配层：基于 `autumn-cloud-extension` 的 `ServiceRegistryClient`/`ServiceDiscoveryClient` 实现 `Registry`/`Discovery` SPI，支持 multicast / consul / nacos |
@@ -376,6 +377,38 @@ Map<String, String> all = AttachmentContext.snapshot();
 - **GraalVM native**：读取侧用 `readFieldBegin()` 顺带解析 field-0，不再反射访问 `TFramedTransport` / `TIOStreamTransport` 私有字段，无需额外反射 hint。
 - 自动化用例见 `autumn-core/src/test/java/com/microapp/autumn/core/extension/ImplicitAttachmentTest.java`（协议往返、双向兼容、响应 field-0、真实 TCP + multiplexed processor 透传）。
 
+### 4.6 泳道路由（按隐式参数筛选注册中心实例）
+
+隐式参数不只是透传业务上下文，还直接驱动服务发现。语义与 `autumn-cloud-extension` 的
+`TrafficSelector` 对齐：实例元数据 `traffic` 为泳道标签，未打标即基线泳道 `main`。
+
+```java
+// 入口（HTTP 网关 / 测试 / 业务代码）：本次调用走 gray 泳道
+AttachmentContext.put("traffic", "gray");
+try {
+    return someService.echo("hello");
+} finally {
+    AttachmentContext.clear();
+}
+```
+
+- **筛选规则**：优先精确命中同泳道实例；该泳道没有实例时回退 `main`，基线也不存在才回退全量，
+  避免泳道误配导致无实例可用。基线请求只走基线实例，不会被灰度实例稀释。
+  `application.traffic-fallback=false` 可关闭回退（找不到同泳道实例即无可用实例）。
+- **全链路**：`traffic` 随 `field-0` 透传到服务端，服务端继续调用下游时 `AttachmentContext` 已被
+  替换为同一份隐式参数，自动沿用同一泳道，无需业务代码重复设置。
+- **任意标签**：`AttachmentContext.put("label.region", "cn")` 会要求实例元数据 `region=cn`，多个标签
+  为 AND 关系；标签全部不匹配时回退到泳道候选集。自定义标签由 provider 侧
+  `application.labels.<key>` / `autumn.labels.<key>` 写入注册元数据。
+- **参数名**：默认识别 `traffic` 与 `X-Traffic`（大小写不敏感），可用
+  `application.traffic-parameter` / `autumn.traffic-parameter` 改成任意逗号分隔的键名列表。
+- **连接池一致性**：`ConcurrentBag` 借用连接时会跳过非本次候选实例的空闲连接（结束后原样放回队列），
+  扩容只针对候选实例建连；池被其它泳道空闲连接占满时优先释放它们腾出名额，避免连接复用把流量打错泳道。
+- **静态默认泳道**：未带隐式参数时回退到应用级 `application.traffic` / `autumn.traffic`；
+  两者都没有就是基线 `main`。注意这与旧版"同泳道 + 基线混合返回"不同，现在按调用参数严格分流。
+- 示例入口：`GET /boot-sample-consumer/hello?traffic=gray`。自动化用例见
+  `TrafficRouterTest`、`TrafficRoutingBagTest`、`ExtensionRegistryDiscoveryTest`。
+
 ## 5. 配置文档
 
 ### 5.1 配置来源与加载优先级
@@ -400,7 +433,10 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | `application.multicast.ip` | `autumn.multicast.ip` | `224.0.0.1` | 多播组播地址 |
 | `application.multicast.port` | `autumn.multicast.port` | `5555` | 多播端口 |
 | `application.multicast.network-interface` | `autumn.multicast.network-interface` | 自动选择 | 多播绑定的网卡名（多网卡环境显式指定） |
-| `application.traffic` | `autumn.traffic` | 空 | 泳道标识，写入实例元数据 `traffic`，用于灰度/泳道路由 |
+| `application.traffic` | `autumn.traffic` | 空 | 泳道标识，写入实例元数据 `traffic`；无隐式参数时作为应用默认泳道 |
+| `application.traffic-parameter` | `autumn.traffic-parameter` | `traffic,X-Traffic` | 承载泳道的隐式参数名（逗号分隔，按优先级） |
+| `application.traffic-fallback` | `autumn.traffic-fallback` | `true` | 同泳道无实例时是否回退基线泳道 `main` |
+| `application.labels.<key>` | `autumn.labels.<key>` | 空 | 注册时附加的实例标签，供 `label.<key>` 隐式参数筛选 |
 | `registry.discovery-interval` | `autumn.discovery-interval` | `5000` | 发现轮询间隔（毫秒，consul/nacos 后端） |
 
 #### Provider 级（原生前缀 `provider.*`，Spring Boot 前缀 `autumn.provider.*`）
@@ -535,7 +571,7 @@ provider.port=30880
 
 ## 6. 注册中心详解
 
-三种后端均由 `autumn-registry-extension` 适配 `autumn-cloud-extension` 实现，注册时实例元数据统一携带 `protocol=thrift`、`application`、`traffic`（泳道标识），发现侧通过 `ExtensionDiscovery` 定时刷新（间隔 `registry.discovery-interval`，默认 5s）并同步连接池。
+三种后端均由 `autumn-registry-extension` 适配 `autumn-cloud-extension` 实现，注册时实例元数据统一携带 `protocol=thrift`、`application`、`traffic`（泳道标识）以及 `application.labels.*` 自定义标签，发现侧通过 `ExtensionDiscovery` 定时刷新（间隔 `registry.discovery-interval`，默认 5s）并同步连接池。快照保留所有泳道实例，`getInstances(name, parameters)` 按本次调用的隐式参数筛选（详见 4.6）。
 
 ### 6.1 多播注册中心（默认）
 
@@ -600,11 +636,11 @@ provider.port=30880
 
 ```bash
 # 终端 1：启动 Provider
-cd autumn-sample/autumn-sample-boot-provider
+cd autumn-samples/autumn-sample-boot-provider
 mvn spring-boot:run
 
 # 终端 2：启动 Consumer
-cd autumn-sample/autumn-sample-boot-consumer
+cd autumn-samples/autumn-sample-boot-consumer
 mvn spring-boot:run
 
 # 触发一次 RPC（Consumer 的 HTTP 接口）

@@ -3,6 +3,8 @@ package com.microapp.autumn.api.config;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 
@@ -97,6 +99,18 @@ public class ApplicationConfig {
      * instance traffic label, used for grey routing
      */
     private String traffic;
+    /**
+     * implicit attachment keys that carry the traffic lane, comma separated and ordered by priority
+     */
+    private String trafficParameter;
+    /**
+     * whether a lane with no matching instance falls back to the main lane, default true
+     */
+    private Boolean trafficFallback;
+    /**
+     * extra instance labels published into registry metadata (application.labels.*)
+     */
+    private Map<String, String> labels;
     /**
      * multicast network interface, auto detect when empty
      */
@@ -220,7 +234,28 @@ public class ApplicationConfig {
                 ? "5000" : discoveryIntervalValue);
 
         String trafficValue = properties.getProperty("application.traffic");
-        this.traffic = (Objects.isNull(trafficValue) || trafficValue.length() < 1) ? null : trafficValue;
+        this.traffic = (Objects.isNull(trafficValue) || trafficValue.length() < 1) ? null : trafficValue.trim();
+
+        String trafficParameterValue = properties.getProperty("application.traffic-parameter");
+        this.trafficParameter = (Objects.isNull(trafficParameterValue) || trafficParameterValue.isBlank())
+                ? "traffic,X-Traffic" : trafficParameterValue.trim();
+
+        String trafficFallbackValue = properties.getProperty("application.traffic-fallback");
+        this.trafficFallback = Boolean.valueOf((Objects.isNull(trafficFallbackValue) || trafficFallbackValue.isBlank())
+                ? Boolean.TRUE.toString() : trafficFallbackValue.trim());
+
+        Map<String, String> labels = new LinkedHashMap<>();
+        String labelPrefix = "application.labels.";
+        for (String key : properties.stringPropertyNames()) {
+            if (!key.startsWith(labelPrefix) || key.length() == labelPrefix.length()) {
+                continue;
+            }
+            String value = properties.getProperty(key);
+            if (Objects.nonNull(value) && !value.isBlank()) {
+                labels.put(key.substring(labelPrefix.length()), value.trim());
+            }
+        }
+        this.labels = Map.copyOf(labels);
 
         String multicastNetworkInterfaceValue = properties.getProperty("application.multicast.network-interface");
         this.multicastNetworkInterface = (Objects.isNull(multicastNetworkInterfaceValue) || multicastNetworkInterfaceValue.length() < 1)

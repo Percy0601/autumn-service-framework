@@ -1,5 +1,6 @@
 package com.microapp.autumn.api.config;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,6 +29,10 @@ public class ConsumerConfig {
      * consumer label, with label route the consumer instance.
      */
     private String label;
+    /**
+     * full registry metadata of this instance, used to match label selectors from implicit parameters
+     */
+    private Map<String, String> labels = Map.of();
     /**
      * consumer contains references service list
      */

@@ -8,7 +8,7 @@
 #
 # Usage:
 #   ./scripts/run-boot.sh autumn-sample-boot-provider --server.port=18080
-#   ./scripts/run-boot.sh autumn-sample/autumn-sample-boot-consumer --server.port=8081
+#   ./scripts/run-boot.sh autumn-samples/autumn-sample-boot-consumer --server.port=8081
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

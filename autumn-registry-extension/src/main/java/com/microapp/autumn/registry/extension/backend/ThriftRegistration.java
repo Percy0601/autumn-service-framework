@@ -7,6 +7,7 @@ import java.util.Objects;
 import com.microapp.autumn.api.config.ApplicationConfig;
 import com.microapp.autumn.api.config.ProviderConfig;
 import com.microapp.autumn.api.util.CommonUtil;
+import com.microapp.autumn.api.extension.TrafficRouter;
 
 import com.autumn.cloud.extension.core.api.Registration;
 import com.autumn.cloud.extension.core.model.InstanceRegistration;
@@ -49,10 +50,14 @@ public final class ThriftRegistration implements Registration {
         }
 
         Map<String, String> metadata = new LinkedHashMap<>();
+        if (Objects.nonNull(applicationConfig.getLabels())) {
+            // 自定义实例标签（application.labels.*），供消费侧 label.* 隐式参数筛选
+            metadata.putAll(applicationConfig.getLabels());
+        }
         metadata.put("protocol", "thrift");
         metadata.put("application", service);
         if (Objects.nonNull(applicationConfig.getTraffic()) && !applicationConfig.getTraffic().isBlank()) {
-            metadata.put("traffic", applicationConfig.getTraffic());
+            metadata.put(TrafficRouter.META_KEY, applicationConfig.getTraffic());
         }
         return new ThriftRegistration(service, instanceId, host, port, Map.copyOf(metadata));
     }

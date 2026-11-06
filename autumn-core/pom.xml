@@ -25,6 +25,10 @@
             <artifactId>autumn-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.micro-app</groupId>
+            <artifactId>autumn-protocol-extension</artifactId>
+        </dependency>
+        <dependency>
             <groupId>javax.annotation</groupId>
             <artifactId>javax.annotation-api</artifactId>
             <scope>provided</scope>

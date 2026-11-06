@@ -1,9 +1,11 @@
 package com.microapp.autumn.core.pool.impl;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.SynchronousQueue;
@@ -21,6 +23,8 @@ import com.microapp.autumn.api.config.ApplicationConfig;
 import com.microapp.autumn.api.config.ConsumerConfig;
 import com.microapp.autumn.api.config.ReferenceConfig;
 import com.microapp.autumn.api.enums.RegistryTypeEnum;
+import com.microapp.autumn.api.extension.AttachmentContext;
+import com.microapp.autumn.api.extension.TrafficRouter;
 import com.microapp.autumn.api.util.AutumnException;
 import com.microapp.autumn.api.util.SpiUtil;
 import com.microapp.autumn.core.pool.LoadBalancer;
@@ -35,6 +39,8 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
  * <p>容量模型：{@code total} 是池内连接总数（含借出中的连接），{@code maxPoolSize} 是全局上限，
  * {@code ConsumerConfig.connections} 是单实例上限。扩容只在需要且未达上限时发生，建连动作在锁外执行，
  * 因此一个慢连接不会阻塞其它线程借用。</p>
+ *
+ * <p>借用时按当前调用的隐式参数（泳道 / 标签）筛选实例，保证连接池复用不会把请求打到别的泳道。</p>
  */
 @Slf4j
 public class ConcurrentBag implements AutoCloseable {
@@ -76,6 +82,18 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     public ConcurrentBagEntry borrow(long timeout, final TimeUnit timeUnit) throws InterruptedException {
+        return borrow(timeout, timeUnit, AttachmentContext.snapshot());
+    }
+
+    /**
+     * 按本次调用的隐式参数借用连接：只返回当前泳道 / 标签命中的实例上的连接。
+     *
+     * <p>连接池是全服务共享的，池里可能同时存在多个泳道的空闲连接。这里把非本次候选实例的
+     * 空闲连接暂存到本地列表，借到连接后原样放回队列，既不丢连接也不把流量打错泳道；
+     * 扩容也只针对候选实例建连，池被其它泳道占满时优先释放那些空闲连接腾出名额。</p>
+     */
+    public ConcurrentBagEntry borrow(long timeout, final TimeUnit timeUnit,
+                                     Map<String, String> parameters) throws InterruptedException {
         Objects.requireNonNull(timeUnit, "timeUnit");
         if (closed) {
             throw new AutumnException("autumn pool has been closed");
@@ -83,64 +101,111 @@ public class ConcurrentBag implements AutoCloseable {
         long deadline = System.nanoTime() + timeUnit.toNanos(timeout);
         int staleRetries = 0;
 
-        for (;;) {
-            ConcurrentBagEntry entry = sharedList.poll();
-            if (Objects.nonNull(entry)) {
-                int state = entry.getState();
-                if (state == ConcurrentBagEntry.STATE_REMOVED) {
-                    // 队列里残留的已摘除连接，关闭后继续
-                    closeQuietly(entry);
-                } else if (state == ConcurrentBagEntry.STATE_IN_USE) {
-                    // 同一 entry 被重复入队的异常副本：放回并限制重试次数，避免死循环
-                    sharedList.offer(entry);
-                    if (++staleRetries > 3) {
+        TrafficRouter.Route route = TrafficRouter.of(parameters);
+        List<ConsumerConfig> candidates = resolveInstances(route, parameters);
+        Set<String> eligible = TrafficRouter.endpointKeys(candidates);
+        // 发现结果为空时保持原有行为（fail-open），避免注册中心暂时不可用却拒绝借用现成连接
+        boolean laneAware = !eligible.isEmpty();
+        List<ConcurrentBagEntry> parked = new ArrayList<>();
+        try {
+            for (;;) {
+                ConcurrentBagEntry entry = sharedList.poll();
+                if (Objects.nonNull(entry)) {
+                    if (laneAware && entry.getState() == ConcurrentBagEntry.STATE_NOT_IN_USE
+                            && !eligible.contains(LoadBalancer.key(entry.getIp(), entry.getPort()))) {
+                        // 其它泳道的空闲连接：本次不借用，结束时原样放回
+                        parked.add(entry);
                         staleRetries = 0;
-                    } else {
+                        if (System.nanoTime() >= deadline) {
+                            return null;
+                        }
                         continue;
                     }
-                } else if (entry.compareAndSet(ConcurrentBagEntry.STATE_NOT_IN_USE, ConcurrentBagEntry.STATE_IN_USE)) {
-                    if (validate(entry)) {
-                        entry.touch();
-                        return entry;
+                    int state = entry.getState();
+                    if (state == ConcurrentBagEntry.STATE_REMOVED) {
+                        // 队列里残留的已摘除连接，关闭后继续
+                        closeQuietly(entry);
+                    } else if (state == ConcurrentBagEntry.STATE_IN_USE) {
+                        // 同一 entry 被重复入队的异常副本：放回并限制重试次数，避免死循环
+                        sharedList.offer(entry);
+                        if (++staleRetries > 3) {
+                            staleRetries = 0;
+                        } else {
+                            continue;
+                        }
+                    } else if (entry.compareAndSet(ConcurrentBagEntry.STATE_NOT_IN_USE,
+                            ConcurrentBagEntry.STATE_IN_USE)) {
+                        if (validate(entry)) {
+                            entry.touch();
+                            return entry;
+                        }
+                        discard(entry);
+                    } else {
+                        sharedList.offer(entry);
                     }
-                    discard(entry);
                 } else {
-                    sharedList.offer(entry);
+                    staleRetries = 0;
                 }
-            } else {
-                staleRetries = 0;
-            }
 
-            if (ensureCapacity(deadline) > 0) {
-                continue;
-            }
+                if (ensureCapacity(deadline, candidates, parked, laneAware ? eligible : Set.of()) > 0) {
+                    continue;
+                }
 
-            if (waiters.get() >= MAX_WAITERS) {
-                log.warn("autumn pool waiters over limit {}, service:{}", MAX_WAITERS, config.getName());
-                return null;
-            }
-            long remain = deadline - System.nanoTime();
-            if (remain <= 0) {
-                return null;
-            }
-            waiters.incrementAndGet();
-            try {
-                entry = handoffQueue.poll(remain, NANOSECONDS);
-            } finally {
-                waiters.decrementAndGet();
-            }
-            if (Objects.nonNull(entry)) {
-                if (entry.getState() == ConcurrentBagEntry.STATE_REMOVED) {
-                    closeQuietly(entry);
-                } else if (entry.compareAndSet(ConcurrentBagEntry.STATE_NOT_IN_USE, ConcurrentBagEntry.STATE_IN_USE)) {
-                    if (validate(entry)) {
-                        entry.touch();
-                        return entry;
+                if (waiters.get() >= MAX_WAITERS) {
+                    log.warn("autumn pool waiters over limit {}, service:{}", MAX_WAITERS, config.getName());
+                    return null;
+                }
+                long remain = deadline - System.nanoTime();
+                if (remain <= 0) {
+                    return null;
+                }
+                waiters.incrementAndGet();
+                try {
+                    entry = handoffQueue.poll(remain, NANOSECONDS);
+                } finally {
+                    waiters.decrementAndGet();
+                }
+                if (Objects.nonNull(entry)) {
+                    if (laneAware && entry.getState() == ConcurrentBagEntry.STATE_NOT_IN_USE
+                            && !eligible.contains(LoadBalancer.key(entry.getIp(), entry.getPort()))) {
+                        parked.add(entry);
+                        if (System.nanoTime() >= deadline) {
+                            return null;
+                        }
+                        continue;
                     }
-                    discard(entry);
-                } else {
-                    sharedList.offer(entry);
+                    if (entry.getState() == ConcurrentBagEntry.STATE_REMOVED) {
+                        closeQuietly(entry);
+                    } else if (entry.compareAndSet(ConcurrentBagEntry.STATE_NOT_IN_USE,
+                            ConcurrentBagEntry.STATE_IN_USE)) {
+                        if (validate(entry)) {
+                            entry.touch();
+                            return entry;
+                        }
+                        discard(entry);
+                    } else {
+                        sharedList.offer(entry);
+                    }
                 }
+            }
+        } finally {
+            restoreParked(parked);
+        }
+    }
+
+    /** 归还本次借用中暂存的非本泳道空闲连接；已被扩容摘除的连接不再放回。 */
+    private void restoreParked(List<ConcurrentBagEntry> parked) {
+        if (parked.isEmpty()) {
+            return;
+        }
+        for (ConcurrentBagEntry entry : parked) {
+            if (closed) {
+                closeQuietly(entry);
+            } else if (entry.getState() == ConcurrentBagEntry.STATE_NOT_IN_USE) {
+                if (waiters.get() > 0 && handoffQueue.offer(entry)) {
+                    continue;
+                }
+                sharedList.offer(entry);
             }
         }
     }
@@ -154,16 +219,20 @@ public class ConcurrentBag implements AutoCloseable {
      * @param deadlineNanos 本次借用的截止时间（{@link System#nanoTime()} 口径），预算耗尽后不再建连
      * @return 本次新建的连接数
      */
-    private int ensureCapacity(long deadlineNanos) {
+    private int ensureCapacity(long deadlineNanos, List<ConsumerConfig> candidates,
+                               List<ConcurrentBagEntry> parked, Set<String> eligible) {
         if (closed) {
             return 0;
         }
-        List<ConsumerConfig> instances = resolveInstances();
-        if (Objects.isNull(instances) || instances.isEmpty()) {
+        if (Objects.isNull(candidates) || candidates.isEmpty()) {
             return 0;
         }
+        if (!eligible.isEmpty() && total.get() + creating.get() >= maxPoolSize()) {
+            // 池被其它泳道的空闲连接占满：先释放它们，给当前泳道腾出建连名额
+            freeIdleOutside(parked, eligible);
+        }
         int created = 0;
-        for (ConsumerConfig instance : instances) {
+        for (ConsumerConfig instance : candidates) {
             if (total.get() >= maxPoolSize()) {
                 break;
             }
@@ -206,17 +275,32 @@ public class ConcurrentBag implements AutoCloseable {
         }
     }
 
-    private List<ConsumerConfig> resolveInstances() {
+    private void freeIdleOutside(List<ConcurrentBagEntry> parked, Set<String> eligible) {
+        for (ConcurrentBagEntry entry : parked) {
+            if (total.get() + creating.get() < maxPoolSize()) {
+                return;
+            }
+            if (entry.getState() == ConcurrentBagEntry.STATE_NOT_IN_USE
+                    && !eligible.contains(LoadBalancer.key(entry.getIp(), entry.getPort()))) {
+                remove(entry);
+            }
+        }
+    }
+
+    private List<ConsumerConfig> resolveInstances(TrafficRouter.Route route, Map<String, String> parameters) {
         List<ConsumerConfig> instances;
         if (RegistryTypeEnum.DIRECT == config.getRegistryTypeEnum()) {
             instances = config.getInstances();
         } else {
             Discovery discovery = SpiUtil.load(Discovery.class);
-            instances = Objects.isNull(discovery) ? null : discovery.getInstances(config.getName());
+            instances = Objects.isNull(discovery) ? null : discovery.getInstances(config.getName(), parameters);
             config.setInstances(instances);
         }
+        // 注册中心实现已按参数过滤；这里按同一条件再收敛一次，兼容返回全量实例的
+        // Discovery 实现与 direct 模式（重复筛选幂等）
+        List<ConsumerConfig> selected = route.select(instances);
         // 按负载均衡策略旋转候选实例，扩容时轮流为各实例建连；归还走 sharedList FIFO，形成稳定轮询
-        return loadBalancer.order(instances, activeCounts());
+        return loadBalancer.order(selected, activeCounts());
     }
 
     private Map<String, Long> activeCounts() {

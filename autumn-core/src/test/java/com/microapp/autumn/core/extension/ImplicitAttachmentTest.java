@@ -35,6 +35,7 @@ import com.microapp.autumn.api.ControlApi;
 import com.microapp.autumn.api.extension.AttachableBinaryProtocol;
 import com.microapp.autumn.api.extension.AttachableProcessor;
 import com.microapp.autumn.api.extension.AttachmentContext;
+import com.microapp.autumn.api.extension.TrafficRouter;
 
 /**
  * 隐式传参（field-0 attachment）兼容性与端到端透传测试。
@@ -76,6 +77,25 @@ class ImplicitAttachmentTest {
             assertEquals("training-thrift", attachment.get("appName"));
             assertTrue(attachment.containsKey("spanId"));
             assertEquals("acme", AttachmentContext.get("tenant"), "服务端线程应能读到隐式参数");
+        } finally {
+            AttachmentContext.clear();
+        }
+    }
+
+    @Test
+    void trafficLaneTravelsWithAttachmentAlongTheCallChain() throws Exception {
+        AttachmentContext.put("traffic", "gray");
+        TMemoryBuffer buffer = new TMemoryBuffer(256);
+        AttachableBinaryProtocol out = new AttachableBinaryProtocol(buffer);
+        writeCall(out, "lane");
+
+        AttachableBinaryProtocol in = new AttachableBinaryProtocol(readOnly(buffer));
+        try {
+            in.readMessageBegin();
+            assertEquals(FIRST_ARG_FIELD_ID, in.readFieldBegin().id);
+            assertEquals("gray", in.getAttachment().get("traffic"));
+            // 服务端解码后上下文已被替换，继续向下游调用会沿用同一泳道
+            assertEquals("gray", TrafficRouter.current().lane());
         } finally {
             AttachmentContext.clear();
         }

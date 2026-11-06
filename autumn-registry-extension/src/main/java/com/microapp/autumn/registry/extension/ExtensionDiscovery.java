@@ -2,6 +2,7 @@ package com.microapp.autumn.registry.extension;
 
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import com.microapp.autumn.api.Discovery;
 import com.microapp.autumn.api.config.ApplicationConfig;
 import com.microapp.autumn.api.config.ConsumerConfig;
+import com.microapp.autumn.api.extension.TrafficRouter;
 import com.microapp.autumn.core.pool.AutumnPool;
 import com.microapp.autumn.registry.extension.backend.RegistryBackends;
 
@@ -26,6 +28,10 @@ import com.autumn.cloud.extension.core.api.ServiceInstance;
  * <p>按 {@code registry.discovery-interval}（默认 5s）轮询 extension 的
  * {@code ServiceDiscoveryClient}，把 {@code ServiceInstance} 翻译成 autumn 连接池使用的
  * {@link ConsumerConfig}。实例对象按 {@code host:port} 复用，避免连接池活跃计数被重置。</p>
+ *
+ * <p>快照保留所有泳道实例及其元数据标签；{@link #getInstances(String, Map)} 依据本次调用的隐式参数
+ * （{@code traffic} / {@code X-Traffic} / {@code label.*}）筛选可用实例，语义与
+ * autumn-cloud-extension 的 {@code TrafficSelector} 一致。</p>
  */
 public class ExtensionDiscovery implements Discovery {
 
@@ -63,6 +69,23 @@ public class ExtensionDiscovery implements Discovery {
 
     @Override
     public List<ConsumerConfig> getInstances(String name) {
+        return snapshot(name);
+    }
+
+    @Override
+    public List<ConsumerConfig> getInstances(String name, Map<String, String> parameters) {
+        List<ConsumerConfig> all = snapshot(name);
+        TrafficRouter.Route route = TrafficRouter.of(parameters);
+        List<ConsumerConfig> routed = route.select(all);
+        if (routed.size() != all.size()) {
+            log.debug("autumn traffic route, service:{}, route:{}, candidates:{}/{}",
+                    name, route, routed.size(), all.size());
+        }
+        return routed;
+    }
+
+    /** 全量实例快照（含各泳道标签）；首次访问时同步刷新一次。 */
+    private List<ConsumerConfig> snapshot(String name) {
         if (Objects.isNull(name) || name.isBlank()) {
             return List.of();
         }
@@ -152,7 +175,7 @@ public class ExtensionDiscovery implements Discovery {
             return;
         }
         List<ServiceInstance> found = RegistryBackends.shared().discoveryClient().getInstances(service);
-        found = filterByTraffic(found, applicationConfig.getTraffic());
+        // 泳道过滤下沉到每次调用：快照必须保留全量实例，否则按隐式参数切换泳道时看不到其它泳道的实例
         Map<String, ConsumerConfig> current = registry.computeIfAbsent(service, key -> new ConcurrentHashMap<>());
         Set<String> alive = new HashSet<>();
         long now = System.currentTimeMillis();
@@ -172,6 +195,7 @@ public class ExtensionDiscovery implements Discovery {
                 log.info("autumn discovery instance added, service:{}, instance:{}", service, key);
             }
             consumerConfig.setLabel(instance.getTraffic());
+            consumerConfig.setLabels(metadataOf(instance));
             consumerConfig.setLatestTime(now);
             alive.add(key);
         }
@@ -191,23 +215,19 @@ public class ExtensionDiscovery implements Discovery {
                 .toList());
     }
 
-    /**
-     * traffic 泳道筛选：排除其它泳道实例，保留同泳道实例与未打标的基线实例；
-     * 若过滤后为空则保留全部，避免泳道配置错误导致无可用实例。
-     */
-    private static List<ServiceInstance> filterByTraffic(List<ServiceInstance> found, String traffic) {
-        if (Objects.isNull(found) || found.isEmpty()) {
-            return List.of();
+    /** 实例元数据快照，供任意标签选择器（label.*）匹配。 */
+    private static Map<String, String> metadataOf(ServiceInstance instance) {
+        Map<String, String> metadata = instance.getMetadata();
+        if (Objects.isNull(metadata) || metadata.isEmpty()) {
+            return Map.of();
         }
-        if (Objects.isNull(traffic) || traffic.isBlank()) {
-            return found;
-        }
-        List<ServiceInstance> eligible = found.stream()
-                .filter(instance -> Objects.isNull(instance.getTraffic())
-                        || instance.getTraffic().isBlank()
-                        || traffic.equalsIgnoreCase(instance.getTraffic()))
-                .toList();
-        return eligible.isEmpty() ? found : eligible;
+        Map<String, String> labels = new LinkedHashMap<>();
+        metadata.forEach((key, value) -> {
+            if (Objects.nonNull(key) && Objects.nonNull(value)) {
+                labels.put(key, value);
+            }
+        });
+        return Map.copyOf(labels);
     }
 
     private static long intervalMillis() {

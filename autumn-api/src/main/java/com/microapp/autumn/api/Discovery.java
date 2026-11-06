@@ -1,6 +1,7 @@
 package com.microapp.autumn.api;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.thrift.TServiceClient;
@@ -40,6 +41,21 @@ public interface Discovery {
      * @return
      */
     List<ConsumerConfig> getInstances(String name);
+
+    /**
+     * get service instances filtered by the current invocation parameters (implicit attachments).
+     *
+     * <p>Implementations backed by a registry (autumn-registry-extension) filter provider instances
+     * by their metadata labels, e.g. {@code traffic=gray}. The default implementation ignores the
+     * parameters so older / direct discovery implementations keep working unchanged.</p>
+     *
+     * @param name       service name
+     * @param parameters implicit parameters of the current invocation
+     * @return instances eligible for this invocation
+     */
+    default List<ConsumerConfig> getInstances(String name, Map<String, String> parameters) {
+        return getInstances(name);
+    }
 
     /**
      * handle check watch service health

@@ -40,6 +40,12 @@
             <artifactId>autumn-core</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- generated _XxxServiceRegister / compiler tests reference the assembler SPI -->
+        <dependency>
+            <groupId>com.micro-app</groupId>
+            <artifactId>autumn-protocol-extension</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>

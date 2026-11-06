@@ -3,12 +3,12 @@
     <modelVersion>4.0.0</modelVersion>
     <modules>
         <module>autumn-api</module>
+        <module>autumn-protocol-extension</module>
         <module>autumn-compiler</module>
         <module>autumn-core</module>
         <module>autumn-registry-extension</module>
         <module>autumn-spring-boot</module>
-        <module>autumn-sample</module>
-        <module>autumn-spring-cloud-examples</module>
+        <module>autumn-samples</module>
     </modules>
 
     <parent>
@@ -93,6 +93,11 @@
             <dependency>
                 <groupId>com.micro-app</groupId>
                 <artifactId>autumn-api</artifactId>
+                <version>1.0.0-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>com.micro-app</groupId>
+                <artifactId>autumn-protocol-extension</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>

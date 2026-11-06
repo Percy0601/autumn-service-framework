@@ -62,7 +62,7 @@ mvn -DskipTests clean install
 ./scripts/run-boot.sh autumn-spring-cloud-examples-provider
 
 # 3) 运行 benchmarker（输出表格 + /tmp/benchmark_result.txt）
-cd autumn-sample/autumn-sample-benchmarker
+cd autumn-samples/autumn-sample-benchmarker
 mvn package -DskipTests
 mvn dependency:build-classpath -Dmdep.outputFile=/tmp/bm_cp.txt
 java -cp "target/autumn-sample-benchmarker.jar:$(cat /tmp/bm_cp.txt)" \

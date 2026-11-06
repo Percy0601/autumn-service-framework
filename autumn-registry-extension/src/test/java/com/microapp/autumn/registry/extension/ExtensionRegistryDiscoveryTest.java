@@ -1,5 +1,6 @@
 package com.microapp.autumn.registry.extension;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -98,8 +99,61 @@ class ExtensionRegistryDiscoveryTest {
         return configs.stream().filter(config -> ip.equals(config.getIp())).findFirst().orElseThrow();
     }
 
+    @Test
+    void discoveryRoutesByImplicitTrafficAndKeepsAllLanesInSnapshot() {
+        backend.instances = List.of(instance("10.0.0.1", 30880, "gray"),
+                instance("10.0.0.2", 30880, null), instance("10.0.0.3", 30880, "blue"));
+        ExtensionDiscovery discovery = new ExtensionDiscovery();
+        discovery.watch("training-b");
+        try {
+            List<ConsumerConfig> all = discovery.getInstances("training-b");
+            assertEquals(3, all.size(), "快照必须保留全量实例，才能按调用参数动态切泳道");
+            assertEquals("gray", find(all, "10.0.0.1").getLabel());
+            assertEquals("gray", find(all, "10.0.0.1").getLabels().get("traffic"));
+
+            assertEquals(List.of("10.0.0.1"),
+                    ips(discovery.getInstances("training-b", Map.of("traffic", "gray"))));
+            assertEquals(List.of("10.0.0.3"),
+                    ips(discovery.getInstances("training-b", Map.of("X-Traffic", "blue"))));
+            assertEquals(List.of("10.0.0.2"),
+                    ips(discovery.getInstances("training-b", Map.of("traffic", "pink"))), "同泳道无实例时回退基线");
+            assertEquals(List.of("10.0.0.1"),
+                    ips(discovery.getInstances("training-b", Map.of())), "无隐式参数时使用应用级 traffic=gray");
+        } finally {
+            discovery.close();
+        }
+    }
+
+    @Test
+    void discoveryFiltersByArbitraryInstanceLabels() {
+        backend.instances = List.of(
+                instance("10.0.0.1", 30880, "gray", Map.of("region", "cn")),
+                instance("10.0.0.2", 30880, "gray", Map.of("region", "us")));
+        ExtensionDiscovery discovery = new ExtensionDiscovery();
+        discovery.watch("training-b");
+        try {
+            assertEquals(List.of("10.0.0.1"),
+                    ips(discovery.getInstances("training-b", Map.of("label.region", "cn"))));
+            assertEquals(2, discovery.getInstances("training-b", Map.of("label.region", "eu")).size(),
+                    "标签无匹配时回退到泳道候选集");
+        } finally {
+            discovery.close();
+        }
+    }
+
+    private static List<String> ips(List<ConsumerConfig> configs) {
+        return configs.stream().map(ConsumerConfig::getIp).toList();
+    }
+
     private static ServiceInstance instance(String host, int port, String traffic) {
-        Map<String, String> metadata = traffic == null ? Map.of() : Map.of("traffic", traffic);
+        return instance(host, port, traffic, Map.of());
+    }
+
+    private static ServiceInstance instance(String host, int port, String traffic, Map<String, String> extra) {
+        Map<String, String> metadata = new LinkedHashMap<>(extra);
+        if (traffic != null) {
+            metadata.put("traffic", traffic);
+        }
         return new ExtensionServiceInstance(host + ":" + port, "training-b", host, port, metadata);
     }
 

@@ -88,6 +88,11 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
         put(props, "application.multicast.port", properties.getMulticastPort());
         put(props, "application.multicast.network-interface", properties.getMulticastNetworkInterface());
         put(props, "application.traffic", properties.getTraffic());
+        put(props, "application.traffic-parameter", properties.getTrafficParameter());
+        put(props, "application.traffic-fallback", properties.getTrafficFallback());
+        if (Objects.nonNull(properties.getLabels())) {
+            properties.getLabels().forEach((key, value) -> put(props, "application.labels." + key, value));
+        }
         put(props, "registry.discovery-interval", properties.getDiscoveryInterval());
         put(props, "consumer.load-balance", properties.getLoadBalance());
 

@@ -24,7 +24,7 @@
 - **零反射调用**：`@Export` / `@Reference` 由 JSR-269 注解处理器在**编译期**生成装配类与代理类，未走处理器时自动回退运行时动态代理
 - **高性能**：`TThreadedSelectorServer` 线程池服务端 + HikariCP 风格连接池（`ConcurrentBag`），按服务隔离、borrow / requite 借还模型，支持动态伸缩
 - **多后端注册发现**：`multicast`（默认，开箱即用）/ `consul`（TTL 续约）/ `nacos`（临时实例心跳）/ `direct`（点对点直连）
-- **治理能力**：泳道标识（traffic）随实例元数据注册，支持灰度路由；每进程内置控制面 Thrift API（health / 运行信息 / 引用查询）
+- **治理能力**：泳道标识（traffic）随实例元数据注册；调用方用隐式参数指定泳道，注册中心按实例 label 过滤，连接池只复用同泳道连接，实现全链路灰度路由；每进程内置控制面 Thrift API
 - **隐式传参**：thrift `field-0` attachment 透传（traceId / tenant 等），通过 `AttachmentContext` 读写；新旧客户端/服务端双向兼容，GraalVM Native 下无需反射 hint
 - **云原生**：数据面 / 控制面分离，SPI + 资源声明齐备，为 GraalVM Native Image 做准备
 
@@ -33,11 +33,12 @@
 | 模块 | 说明 |
 | --- | --- |
 | `autumn-api` | 注解、配置类、扩展点（SPI）、控制面 Thrift 定义 |
+| `autumn-protocol-extension` | 协议扩展：隐式传参（field-0 attachment）、泳道路由、SPI 扩展点 |
 | `autumn-compiler` | JSR-269 注解处理器 + FreeMarker 模板（编译期生成代码） |
 | `autumn-core` | 核心运行时：`AutumnBootstrap`、Provider / Consumer、连接池、控制面实现 |
 | `autumn-registry-extension` | 注册中心适配层：基于 [autumn-cloud-extension](https://github.com/Percy0601/autumn-cloud-extension) 实现 `Registry` / `Discovery` SPI |
 | `autumn-spring-boot` | Spring Boot Starter（自动装配 / 注解处理 / 生命周期） |
-| `autumn-sample` | 示例工程：Thrift 接口 jar + 原生 API / Spring Boot 的 Provider & Consumer |
+| `autumn-samples` | 示例工程聚合：Thrift 接口 jar + 原生 API / Spring Boot 的 Provider & Consumer，并包含 `autumn-spring-cloud-examples` |
 
 ## 快速开始（Spring Boot）
 
@@ -89,7 +90,10 @@ Spring Boot 场景统一使用 `autumn.*` 前缀（由 `AutumnProperties` 绑定
 | `autumn.multicast.ip` | `224.0.0.1` | 组播地址（multicast 后端） |
 | `autumn.multicast.port` | `5555` | 组播端口（multicast 后端） |
 | `autumn.multicast.network-interface` | 自动选择 | 组播绑定网卡名，多网卡环境建议显式指定 |
-| `autumn.traffic` | 空 | 泳道标识，写入实例元数据，供灰度 / 泳道路由 |
+| `autumn.traffic` | 空 | 泳道标识，写入实例元数据；未带隐式参数时作为本应用的默认泳道 |
+| `autumn.traffic-parameter` | `traffic,X-Traffic` | 承载泳道的隐式参数名（逗号分隔，按优先级），`X-Traffic` 便于网关透传 |
+| `autumn.traffic-fallback` | `true` | 同泳道无实例时是否回退基线 `main`；关闭后找不到同泳道实例即无可用实例 |
+| `autumn.labels.<key>` | 空 | provider 注册时附加的实例标签，供 `label.<key>` 隐式参数筛选 |
 | `autumn.discovery-interval` | `5000` | 发现轮询间隔，毫秒（consul / nacos 后端） |
 
 ### Provider 服务端（`autumn.provider.*` ｜ 原生前缀 `provider.*`）
@@ -147,12 +151,16 @@ JDK 25+（source/target/release 与 JSR 269 处理器均已统一到 25），Mav
 mvn clean install          # 全量构建 + 测试
 mvn -DskipTests clean install
 # GraalVM native image：先 install，再编译 sample（provider / consumer 均可）
-mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
-mvn -f autumn-sample/autumn-sample-boot-consumer/pom.xml -Pnative native:compile
+mvn -f autumn-samples/autumn-sample-boot-provider/pom.xml -Pnative native:compile
+mvn -f autumn-samples/autumn-sample-boot-consumer/pom.xml -Pnative native:compile
+
+# 按泳道调用（隐式参数随 RPC 透传，注册中心按实例 traffic / label 过滤）
+curl 'http://127.0.0.1:18081/boot-sample-consumer/hello?traffic=gray'
+curl 'http://127.0.0.1:18081/boot-sample-consumer/hello?label.region=cn'
 
 # 启动 native 产物做端到端验证（同机 multicast 自注册，无需 Consul）
-autumn-sample/autumn-sample-boot-provider/target/autumn-sample-boot-provider-native.exe --autumn.registry-type=multicast --server.port=18080
-autumn-sample/autumn-sample-boot-consumer/target/autumn-sample-boot-consumer-native.exe --autumn.registry-type=multicast --server.port=18081
+autumn-samples/autumn-sample-boot-provider/target/autumn-sample-boot-provider-native.exe --autumn.registry-type=multicast --server.port=18080
+autumn-samples/autumn-sample-boot-consumer/target/autumn-sample-boot-consumer-native.exe --autumn.registry-type=multicast --server.port=18081
 curl http://127.0.0.1:18081/boot-sample-consumer/hello
 
 # 启动 sample（自动把可执行 jar 复制到 run/ 后运行，不占用 target/ 里的产物）
