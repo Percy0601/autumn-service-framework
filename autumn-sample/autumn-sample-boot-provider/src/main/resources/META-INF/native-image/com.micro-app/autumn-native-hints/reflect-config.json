@@ -1,0 +1,491 @@
+[
+  {
+    "name": "com.microapp.autumn.registry.extension.ExtensionRegistry",
+    "allDeclaredConstructors": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microapp.autumn.registry.extension.ExtensionDiscovery",
+    "allDeclaredConstructors": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "com.microapp.autumn.api.ControlApi$Client",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.api.ControlApi$Processor",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService$Client",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService$Processor",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService2$Client",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService2$Processor",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.api._SomeServiceProxy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.api._SomeService3Proxy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.api._SomeService4Proxy",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service._SomeServiceImplServiceRegister",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service._SomeServiceImpl2ServiceRegister",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service._SomeServiceImpl3ServiceRegister",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service._SomeServiceImpl4ServiceRegister",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true
+  },
+  {
+    "name": "org.apache.thrift.transport.layered.TFastFramedTransport",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.apache.thrift.transport.TMemoryInputTransport",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.apache.thrift.transport.TIOStreamTransport",
+    "allDeclaredFields": true
+  },
+  {
+    "name": "org.apache.coyote.AbstractProtocol",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true,
+    "methods": [
+      {
+        "name": "getAddress",
+        "parameterTypes": []
+      },
+      {
+        "name": "getLocalPort",
+        "parameterTypes": []
+      },
+      {
+        "name": "getProperty",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setPort",
+        "parameterTypes": [
+          "int"
+        ]
+      },
+      {
+        "name": "setProperty",
+        "parameterTypes": [
+          "java.lang.String",
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.apache.coyote.http11.AbstractHttp11Protocol",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true,
+    "methods": [
+      {
+        "name": "isSSLEnabled",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.apache.coyote.http11.Http11NioProtocol",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.apache.tomcat.util.net.AbstractEndpoint",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true,
+    "methods": [
+      {
+        "name": "setBindOnInit",
+        "parameterTypes": [
+          "boolean"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "org.apache.tomcat.util.net.NioEndpoint",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.apache.tomcat.util.net.SocketProperties",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.apache.catalina.connector.Connector",
+    "queryAllPublicMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.apache.catalina.util.CharsetMapper",
+    "allDeclaredConstructors": true,
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.apache.catalina.core.ApplicationContextFacade",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "org.apache.catalina.startup.Tomcat",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "org.apache.tomcat.websocket.server.WsSci",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "org.apache.tomcat.websocket.server.WsFilter",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "com.microapp.autumn.api.annotation.Export"
+  },
+  {
+    "name": "com.microapp.autumn.api.annotation.Reference"
+  },
+  {
+    "name": "com.microapp.autumn.boot.AutumnBeanPostProcessor"
+  },
+  {
+    "name": "com.microapp.autumn.boot.AutumnLifecycle"
+  },
+  {
+    "name": "com.microapp.autumn.boot.config.AutumnAutoConfig",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "autumnBeanPostProcessor",
+        "parameterTypes": [
+          "com.microapp.autumn.boot.config.AutumnProperties"
+        ]
+      },
+      {
+        "name": "autumnLifecycle",
+        "parameterTypes": []
+      },
+      {
+        "name": "autumnProperties",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.boot.config.AutumnProperties",
+    "methods": [
+      {
+        "name": "getConsul",
+        "parameterTypes": []
+      },
+      {
+        "name": "getProvider",
+        "parameterTypes": []
+      },
+      {
+        "name": "setConsul",
+        "parameterTypes": [
+          "com.microapp.autumn.boot.config.AutumnProperties$Consul"
+        ]
+      },
+      {
+        "name": "setName",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setProvider",
+        "parameterTypes": [
+          "com.microapp.autumn.boot.config.AutumnProperties$Provider"
+        ]
+      },
+      {
+        "name": "setRegistryType",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.boot.config.AutumnProperties$Consul",
+    "methods": [
+      {
+        "name": "setHost",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setPort",
+        "parameterTypes": [
+          "java.lang.Integer"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.boot.config.AutumnProperties$Provider",
+    "methods": [
+      {
+        "name": "setIp",
+        "parameterTypes": [
+          "java.lang.String"
+        ]
+      },
+      {
+        "name": "setMaxThreads",
+        "parameterTypes": [
+          "java.lang.Integer"
+        ]
+      },
+      {
+        "name": "setPort",
+        "parameterTypes": [
+          "java.lang.Integer"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService$Iface"
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService2$Iface"
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService3$Iface"
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.SomeService4$Iface"
+  },
+  {
+    "name": "com.microapp.autumn.sample.api.User",
+    "methods": [
+      {
+        "name": "getDesc",
+        "parameterTypes": []
+      },
+      {
+        "name": "getDescSize",
+        "parameterTypes": []
+      },
+      {
+        "name": "getUserId",
+        "parameterTypes": []
+      },
+      {
+        "name": "getUsername",
+        "parameterTypes": []
+      },
+      {
+        "name": "isSetDesc",
+        "parameterTypes": []
+      },
+      {
+        "name": "isSetUserId",
+        "parameterTypes": []
+      },
+      {
+        "name": "isSetUsername",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.BootSampleBootstrap",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "main",
+        "parameterTypes": [
+          "java.lang.String[]"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.controller.SomeController",
+    "fields": [
+      {
+        "name": "someServiceConsumer"
+      }
+    ],
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      },
+      {
+        "name": "getUser",
+        "parameterTypes": [
+          "int"
+        ]
+      },
+      {
+        "name": "greet",
+        "parameterTypes": [
+          "java.lang.String",
+          "int"
+        ]
+      },
+      {
+        "name": "hello",
+        "parameterTypes": []
+      },
+      {
+        "name": "listUserIds",
+        "parameterTypes": []
+      }
+    ],
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service.SomeServiceConsumer",
+    "fields": [
+      {
+        "name": "someService"
+      },
+      {
+        "name": "someService3"
+      },
+      {
+        "name": "someService4"
+      }
+    ],
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ],
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service.SomeServiceImpl",
+    "fields": [
+      {
+        "name": "someService"
+      }
+    ],
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ],
+    "allDeclaredFields": true
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service.SomeServiceImpl2",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service.SomeServiceImpl3",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "com.microapp.autumn.sample.boot.provider.service.SomeServiceImpl4",
+    "methods": [
+      {
+        "name": "<init>",
+        "parameterTypes": []
+      }
+    ]
+  },
+  {
+    "name": "org.apache.coyote.UpgradeProtocol"
+  },
+  {
+    "name": "org.apache.thrift.TBase"
+  },
+  {
+    "name": "org.apache.thrift.TSerializable"
+  }
+]

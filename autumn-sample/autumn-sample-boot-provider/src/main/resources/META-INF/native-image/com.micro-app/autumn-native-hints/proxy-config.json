@@ -1,0 +1,6 @@
+[
+  {"interfaces": ["com.microapp.autumn.sample.api.SomeService$Iface"]},
+  {"interfaces": ["com.microapp.autumn.sample.api.SomeService2$Iface"]},
+  {"interfaces": ["com.microapp.autumn.sample.api.SomeService3$Iface"]},
+  {"interfaces": ["com.microapp.autumn.sample.api.SomeService4$Iface"]}
+]
