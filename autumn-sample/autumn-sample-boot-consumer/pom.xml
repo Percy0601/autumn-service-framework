@@ -44,6 +44,11 @@
         </dependency>
         <dependency>
             <groupId>com.micro-app</groupId>
+            <artifactId>autumn-sample-boot-native-hints</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.micro-app</groupId>
             <artifactId>autumn-compiler</artifactId>
             <scope>provided</scope>
         </dependency>
@@ -88,4 +93,33 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- GraalVM native: mvn -Pnative native:compile (JDK 25 / GraalVM 25) -->
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <configuration>
+                            <mainClass>com.microapp.autumn.sample.boot.consumer.BootSampleConsumerBootstrap</mainClass>
+                            <imageName>autumn-sample-boot-consumer-native</imageName>
+                            <buildArgs>
+                                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                                <!-- 反射/资源/动态代理元数据全部在构建期产生：
+                                     autumn-compiler 的 JSR-269 处理器写 META-INF/native-image/com.micro-app/autumn-*-hints/，
+                                     TomcatNativeHints 走 Spring AOT；native-image 自动合并，无需 -H:*ConfigurationResources -->
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

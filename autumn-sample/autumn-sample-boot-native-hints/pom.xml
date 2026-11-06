@@ -1,0 +1,47 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>autumn-sample</artifactId>
+        <groupId>com.micro-app</groupId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>autumn-sample-boot-native-hints</artifactId>
+    <packaging>jar</packaging>
+
+    <name>autumn-sample-boot-native-hints</name>
+    <url>http://maven.apache.org</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+    </properties>
+
+    <!--
+      Spring Boot 示例工程共用的一份 native-image 反射元数据（RuntimeHintsRegistrar）。
+      autumn 自身的反射由 autumn-compiler 的 JSR-269 处理器在编译期生成，
+      这里只补框架管不到的嵌入式 Tomcat / WebSocket 部分。
+      spring-core 与 tomcat 均声明为 provided：类只在构建期参与编译与 AOT 处理，
+      运行期由宿主工程自己的 spring-boot-starter-web 提供。
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-core</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tomcat.embed</groupId>
+            <artifactId>tomcat-embed-websocket</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>

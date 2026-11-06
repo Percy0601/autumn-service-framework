@@ -15,8 +15,9 @@
 # reflect-config.json are needed.
 #
 # Usage:
-#   ./scripts/build-native.sh                       # spring-cloud-examples provider + consumer
+#   ./scripts/build-native.sh                       # autumn-sample boot provider + consumer
 #   MODULES=autumn-sample/autumn-sample-boot-provider ./scripts/build-native.sh
+#   MODULES=autumn-spring-cloud-examples/autumn-spring-cloud-examples-provider,autumn-spring-cloud-examples/autumn-spring-cloud-examples-consumer ./scripts/build-native.sh
 #   SKIP_INSTALL=1 ./scripts/build-native.sh         # reuse already installed snapshots
 set -euo pipefail
 
@@ -31,7 +32,7 @@ fi
 echo "GraalVM: $($JAVA_HOME/bin/java -version 2>&1 | head -1)"
 echo "native-image: $($JAVA_HOME/bin/native-image --version 2>&1 | head -1)"
 
-MODULES="${MODULES:-autumn-spring-cloud-examples/autumn-spring-cloud-examples-provider,autumn-spring-cloud-examples/autumn-spring-cloud-examples-consumer}"
+MODULES="${MODULES:-autumn-sample/autumn-sample-boot-provider,autumn-sample/autumn-sample-boot-consumer}"
 
 if [ "${SKIP_INSTALL:-0}" != "1" ]; then
   echo "[1/2] install all modules (JDK 25)"

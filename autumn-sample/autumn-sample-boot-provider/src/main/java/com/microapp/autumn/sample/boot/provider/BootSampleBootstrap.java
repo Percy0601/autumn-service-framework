@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ImportRuntimeHints;
 
 import com.microapp.autumn.sample.api.User;
+import com.microapp.autumn.sample.nativehints.TomcatNativeHints;
 
 /**
  * @author: baoxin.zhao

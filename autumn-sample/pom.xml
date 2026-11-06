@@ -7,6 +7,7 @@
     </parent>
     <modules>
         <module>autumn-sample-api</module>
+        <module>autumn-sample-boot-native-hints</module>
         <module>autumn-sample-basic-consumer</module>
         <module>autumn-sample-basic-provider</module>
         <module>autumn-sample-boot-consumer</module>

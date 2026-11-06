@@ -337,15 +337,23 @@ public final class _SomeServiceProxy implements SomeService.Iface {
 - 处理器覆盖不到的部分在示例工程里这样处理（构建期产生，不落 json）：
   - 嵌入式 Tomcat：`TomcatWebServer#disableBindOnInit` 会反射调用 `AbstractProtocol#getProperty`，
     而 `tomcat-embed-core` 10.1.x 在 GraalVM reachability metadata 仓库里只能回落到 10.0.x 配置 →
-    示例工程用 `TomcatNativeHints implements RuntimeHintsRegistrar` + `@ImportRuntimeHints` 声明这批
-    `allPublicMethods` / `allDeclaredConstructors` 类型与 `LocalStrings` 资源包，Spring AOT 在
-    `process-aot` 阶段把它们并进 `<groupId>/<artifactId>/` 下的元数据。
+    两个示例工程共用 `autumn-sample-boot-native-hints` 模块的 `TomcatNativeHints implements RuntimeHintsRegistrar`
+    + `@ImportRuntimeHints`，声明这批 `allPublicMethods` / `allDeclaredConstructors` 类型与 `LocalStrings`
+    资源包，Spring AOT 在 `process-aot` 阶段把它们并进 `<groupId>/<artifactId>/` 下的元数据。
   - 应用自己的 POJO 交给 Jackson 序列化：用 `@RegisterReflectionForBinding(User.class)`
     （见 `BootSampleBootstrap`），不要回到手写 json。
-- 结论：`autumn-sample-boot-provider` 的 `src/main/resources/META-INF/native-image/` 已清空，
-  native 镜像只依赖「注解处理器生成的 hints + Spring AOT hints」；实测 native 启动 0.08s，
-  `/hello`（thrift 自环）、`/greet`、`/listUserIds`、`/getUser`（Jackson 序列化 POJO）全部 200。
-- 排查手法：native 运行时报 `MissingReflectionRegistrationError` 时，异常本身会打印可直接粘贴的 json 片段，按上面三类归属补到对应位置即可。
+  - 注册中心：框架自带的 `AutumnRuntimeHints` 已登记 multicast 心跳帧的 Jackson record
+    （`com.autumn.cloud.extension.core.multicast.MulticastDiscovery$Frame`、`InstanceRegistration`、
+    `InstanceSnapshot`）。record 的 canonical 构造器是包级可见，必须用
+    `INVOKE_DECLARED_CONSTRUCTORS`；缺注册时 native 下心跳帧能被发出但**全部反序列化失败**，
+    表现为「实例注册成功、对方永远发现不到」。
+- 结论：两个示例工程（provider / consumer）的 `src/main/resources/META-INF/native-image/` 都已清空，
+  native 镜像只依赖「注解处理器生成的 hints + Spring AOT hints」。
+  实测 provider 启动 0.095s，`/hello`（thrift 自环）、`/greet`、`/listUserIds`、`/getUser`
+  （Jackson 序列化 POJO）全部 200；consumer 启动 0.088s，经 multicast 发现 provider 后
+  `/boot-sample-consumer/hello` 返回 `Hello, 213 [node:30880] [tenant:consul-smoke]`，
+  即 `@Reference`、生成代理与隐式传参在纯 native 环境下均可用。
+- 排查手法：native 运行时报 `MissingReflectionRegistrationError` 时，异常本身会打印可直接粘贴的 json 片段，按上面三类归属补到对应位置即可；若日志里出现 `this appears to be a native image ... configure reflection for the class that is to be deserialized`，则是 Jackson 反序列化目标类缺构造器注册。
 
 ### 4.5 隐式传参（attachment）
 
@@ -646,12 +654,15 @@ mvn test
 框架调用面已零反射（JSR-269 生成代码 + SPI），注册发现实现零 SDK 依赖（原生 HTTP / JDK 组播）。native-image 需要的反射 / 动态代理 / 资源元数据在**构建期**全部就绪，仓库里没有手写 hints：
 
 - `@Export` / `@Reference` 注解处理器在编译期写出 `META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`（装配器、`_XxxProxy`、`Xxx$Client`、注入字段 `allowWrite`、`Iface` 动态代理组），随 jar 打包，`native-image` 自动合并，无需 `-H:*ConfigurationResources`（详见 [4.4](#44-编译期代码生成jsr-269)）；
-- 框架已知的资源与 SPI 契约由 `AutumnRuntimeHints`（`@ImportRuntimeHints`）在 Spring AOT 阶段登记；
-- 三方 / 应用侧反射用 `RuntimeHintsRegistrar`、`@RegisterReflectionForBinding` 补齐（示例：`TomcatNativeHints`、`BootSampleBootstrap`）。
+- 框架已知的资源、SPI 契约与注册中心 Jackson record 由 `AutumnRuntimeHints`（`@ImportRuntimeHints`）在 Spring AOT 阶段登记；
+- 三方 / 应用侧反射用 `RuntimeHintsRegistrar`、`@RegisterReflectionForBinding` 补齐（示例：共用模块 `autumn-sample-boot-native-hints` 的 `TomcatNativeHints`、`BootSampleBootstrap`）。
 
-`autumn-sample-boot-provider` 已在本机以 GraalVM 25（Oracle GraalVM 25.4.4.1.1+1.1）native 镜像跑通：冷启动 0.08s，
-`/hello`（进程内 thrift 自环调用）、`/greet`、`/listUserIds`、`/getUser`（Jackson 序列化 thrift POJO）全部 200。
-尚未接入 native 构建的 CI，consumer 侧示例与生产验证仍未完成。
+两个示例工程都已在本机以 GraalVM 25（Oracle GraalVM 25.4.4.1.1+1.1）native 镜像跑通：
+
+- `autumn-sample-boot-provider`：冷启动 0.08s，`/hello`（进程内 thrift 自环调用）、`/greet`、`/listUserIds`、`/getUser`（Jackson 序列化 thrift POJO）全部 200。
+- `autumn-sample-boot-consumer`：冷启动 0.088s，`-Pnative` 已在 pom 里配好 profile（`native-maven-plugin`，产物 `autumn-sample-boot-consumer-native.exe`）；同机 multicast 双 native 进程下发现 provider 后 `GET /boot-sample-consumer/hello` → `Hello, 213 [node:30880] [tenant:consul-smoke]`，即生成代理 + `@Reference` 注入 + attachment 透传在纯 native 环境可用。
+
+尚未接入 native 构建的 CI。
 
 **Q6：切换 / 删除注册中心实现后行为没变？**
 

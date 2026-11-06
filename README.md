@@ -136,8 +136,14 @@ JDK 25+（source/target/release 与 JSR 269 处理器均已统一到 25），Mav
 ```bash
 mvn clean install          # 全量构建 + 测试
 mvn -DskipTests clean install
-# GraalVM native image：先 install，再单独编译 sample provider
+# GraalVM native image：先 install，再编译 sample（provider / consumer 均可）
 mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
+mvn -f autumn-sample/autumn-sample-boot-consumer/pom.xml -Pnative native:compile
+
+# 启动 native 产物做端到端验证（同机 multicast 自注册，无需 Consul）
+autumn-sample/autumn-sample-boot-provider/target/autumn-sample-boot-provider-native.exe --autumn.registry-type=multicast --server.port=18080
+autumn-sample/autumn-sample-boot-consumer/target/autumn-sample-boot-consumer-native.exe --autumn.registry-type=multicast --server.port=18081
+curl http://127.0.0.1:18081/boot-sample-consumer/hello
 
 # 启动 sample（自动把可执行 jar 复制到 run/ 后运行，不占用 target/ 里的产物）
 ./scripts/run-boot.sh autumn-sample-boot-provider --server.port=18080
@@ -161,8 +167,10 @@ mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
   `-H:DynamicProxyConfigurationResources` 手工加载，业务工程也不用维护反射清单。
 - 嵌入式 Tomcat：`TomcatWebServer#disableBindOnInit` 会反射调用 `AbstractProtocol#getProperty`，
   而 `tomcat-embed-core` 10.1.x 在 GraalVM reachability metadata 仓库里只有 10.0.x 配置；
-  示例工程用 `TomcatNativeHints`（`RuntimeHintsRegistrar`，`@ImportRuntimeHints`）描述这批类型，
-  由 Spring AOT 在 `process-aot` 阶段并进元数据。
+  两个示例工程共用 `autumn-sample-boot-native-hints` 模块里的 `TomcatNativeHints`
+  （`RuntimeHintsRegistrar`，`@ImportRuntimeHints`），由 Spring AOT 在 `process-aot` 阶段并进元数据。
+- 注册中心：框架自带的 `AutumnRuntimeHints` 已登记 multicast 心跳帧用 Jackson 反序列化的 record
+  （`MulticastDiscovery$Frame`、`InstanceRegistration`），缺注册会让心跳帧被丢弃、实例无法被发现。
 - 应用 POJO 交给 Jackson：用 `@RegisterReflectionForBinding`（见 `BootSampleBootstrap`）。
 
 > 详见 [使用说明文档](docs/USER_GUIDE.md#44-编译期代码生成jsr-269)。
@@ -175,5 +183,6 @@ mvn -f autumn-sample/autumn-sample-boot-provider/pom.xml -Pnative native:compile
 - [x] 注册发现收敛至 autumn-cloud-extension（multicast / consul / nacos / direct）
 - [ ] 控制面治理工具（服务列表、上下线开关、路由、devops CLI）
 - [ ] `AutumnFilter` 过滤器链（鉴权、限流、链路透传）、熔断降级
-- [ ] GraalVM Native Image 示例工程与 CI 验证
+- [x] GraalVM Native Image 示例工程（provider / consumer 双 native 跑通，反射元数据构建期生成）
+- [ ] GraalVM Native Image CI 验证
 - [ ] module-info（JPMS）完善
