@@ -327,9 +327,14 @@ public class AutumnBeanPostProcessor implements BeanPostProcessor {
                 config.setRegistryTypeEnum(RegistryTypeEnum.MULTICAST);
             }
         }
-        config.setPoolTimeout(10000L);
-        config.setConnectionTimeout(1000L);
-        config.setSocketTimeout(3000L);
+        // 超时时间统一从 autumn.consumer.* 读取，未配置时回落到 ReferenceConfig 默认值，
+        // 保证客户端在服务端未启动时不会无限等待建连或回包
+        AutumnProperties.Consumer consumer = Objects.isNull(properties) ? null : properties.getConsumer();
+        if (Objects.nonNull(consumer)) {
+            config.setPoolTimeout(consumer.getPoolTimeout());
+            config.setConnectionTimeout(consumer.getConnectionTimeout());
+            config.setSocketTimeout(consumer.getSocketTimeout());
+        }
         return config;
     }
 

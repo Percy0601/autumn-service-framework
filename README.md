@@ -105,6 +105,16 @@ Spring Boot 场景统一使用 `autumn.*` 前缀（由 `AutumnProperties` 绑定
 | `autumn.provider.thread-queue-size` | `10` | 工作队列容量 |
 | `autumn.provider.timeout` | `3` | 服务处理超时，秒 |
 
+### Consumer 客户端（`autumn.consumer.*`，仅 Spring Boot 接入）
+
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `autumn.consumer.pool-timeout` | `10000` | 连接池借用超时，毫秒；引用实例不可用时最多等这么久 |
+| `autumn.consumer.connection-timeout` | `1000` | TCP 建连超时，毫秒；服务端未启动时不会无限等待 |
+| `autumn.consumer.socket-timeout` | `3000` | 读响应超时，毫秒；服务端接了连接不回包时按此超时失败 |
+
+> 原生 API（`ReferenceConfig`）同样内建默认值：借用 `1s`、建连 `1s`、读响应 `3s`，显式设置 `null` / `0` / 负数会回落到默认值。建连耗时计入借用超时预算，因此客户端先启动、服务端后启动时，调用最多等待 `pool-timeout` 就会失败返回，不会一直挂住。
+
 ### Consul（`registry-type=consul` 时生效，`autumn.consul.*` ｜ 原生前缀 `consul.*`）
 
 | 配置项 | 默认值 | 说明 |

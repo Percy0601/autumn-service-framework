@@ -23,6 +23,7 @@ import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.layered.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
+import org.apache.thrift.transport.TTransportException;
 
 import com.microapp.autumn.sample.api.SomeService;
 
@@ -43,6 +44,9 @@ import com.microapp.autumn.sample.api.SomeService;
 public class BenchmarkRunner {
 
     private static final String THRIFT_METHOD = "echo(\"hello\")";
+    /** 压测客户端也必须带超时，避免服务端未就绪时卡在建连或读响应上 */
+    private static final int THRIFT_CONNECT_TIMEOUT_MILLIS = 1000;
+    private static final int THRIFT_SOCKET_TIMEOUT_MILLIS = 3000;
 
     public static void main(String[] args) throws Exception {
         String thriftHost = "127.0.0.1";
@@ -128,8 +132,7 @@ public class BenchmarkRunner {
             pool.submit(() -> {
                 // 服务端为 TThreadedSelectorServer + TMultiplexedProcessor + TFramedTransport + TBinaryProtocol，
                 // 客户端需一致（TMultiplexedProtocol 的 serviceName 为注册名:接口全限定名）
-                try (TTransport transport = new TFramedTransport(new TSocket(host, port))) {
-                    transport.open();
+                try (TTransport transport = openThriftTransport(host, port)) {
                     TMultiplexedProtocol protocol = new TMultiplexedProtocol(
                             new TBinaryProtocol(transport), "com.microapp.autumn.sample.api.SomeService$Iface");
                     SomeService.Client client = new SomeService.Client(protocol);
@@ -162,8 +165,7 @@ public class BenchmarkRunner {
     }
 
     private static void warmupThrift(String host, int port, int count) throws Exception {
-        try (TTransport transport = new TFramedTransport(new TSocket(host, port))) {
-            transport.open();
+        try (TTransport transport = openThriftTransport(host, port)) {
             TMultiplexedProtocol protocol = new TMultiplexedProtocol(
                     new TBinaryProtocol(transport), "com.microapp.autumn.sample.api.SomeService$Iface");
             SomeService.Client client = new SomeService.Client(protocol);
@@ -172,6 +174,27 @@ public class BenchmarkRunner {
             }
         } catch (Exception e) {
             System.err.println("thrift warmup failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 建连与读响应都设上限：服务端未启动时压测工具应当快速报错，而不是一直挂着。
+     */
+    private static TTransport openThriftTransport(String host, int port) throws TTransportException {
+        TSocket socket = new TSocket(host, port);
+        socket.setConnectTimeout(THRIFT_CONNECT_TIMEOUT_MILLIS);
+        socket.setSocketTimeout(THRIFT_SOCKET_TIMEOUT_MILLIS);
+        try {
+            TTransport transport = new TFramedTransport(socket);
+            transport.open();
+            return transport;
+        } catch (TTransportException e) {
+            try {
+                socket.close();
+            } catch (Exception ignored) {
+                // 建连失败清理
+            }
+            throw e;
         }
     }
 

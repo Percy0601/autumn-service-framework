@@ -75,6 +75,11 @@ public class AutumnProperties {
     private Provider provider = new Provider();
 
     /**
+     * consumer (reference) config
+     */
+    private Consumer consumer = new Consumer();
+
+    /**
      * consul registry config
      */
     private Consul consul = new Consul();
@@ -130,6 +135,22 @@ public class AutumnProperties {
          * shared token required by control api invocations, empty disables authentication
          */
         private String controlToken;
+    }
+
+    @Data
+    public static class Consumer {
+        /**
+         * pool borrow timeout, unit millisecond, default 10000
+         */
+        private Long poolTimeout = 10_000L;
+        /**
+         * TCP connect timeout, unit millisecond, default 1000
+         */
+        private Long connectionTimeout = 1_000L;
+        /**
+         * socket read timeout, unit millisecond, default 3000
+         */
+        private Long socketTimeout = 3_000L;
     }
 
     @Data

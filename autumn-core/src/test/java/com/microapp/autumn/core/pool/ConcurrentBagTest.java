@@ -1,8 +1,10 @@
 package com.microapp.autumn.core.pool;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -20,6 +22,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.thrift.TServiceClient;
+import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransportException;
+import org.apache.thrift.transport.layered.TLayeredTransport;
 import org.junit.jupiter.api.Test;
 
 import com.microapp.autumn.api.config.ConsumerConfig;
@@ -181,5 +188,67 @@ class ConcurrentBagTest {
                 bag.close();
             }
         }
+    }
+
+    /**
+     * 未显式配置超时时，池里建出来的连接也必须带读超时（默认 3s），
+     * 否则服务端接了连接不回包会把调用线程永久挂住。
+     */
+    @Test
+    void defaultTimeoutsAreAppliedToPooledConnection() throws Exception {
+        try (TcpStub stub = new TcpStub()) {
+            ConcurrentBag bag = new ConcurrentBag(directConfig("svc", stub.port(), 1));
+            try {
+                ConcurrentBagEntry entry = bag.borrow(500, TimeUnit.MILLISECONDS);
+                assertNotNull(entry);
+                TSocket socket = (TSocket) ((TLayeredTransport) entry.getEntry()).getInnerTransport();
+                assertEquals(ReferenceConfig.DEFAULT_SOCKET_TIMEOUT_MILLIS, socket.getSocket().getSoTimeout());
+                bag.requite(entry);
+            } finally {
+                bag.close();
+            }
+        }
+    }
+
+    /**
+     * 服务端接受连接但不回包时，读取必须按配置的 socketTimeout 失败，而不是无限等待。
+     */
+    @Test
+    void socketReadTimeoutAbortsBlockedReply() throws Exception {
+        try (TcpStub stub = new TcpStub()) {
+            ReferenceConfig<TServiceClient> config = directConfig("svc", stub.port(), 1);
+            config.setSocketTimeout(200L);
+            ConcurrentBag bag = new ConcurrentBag(config);
+            try {
+                ConcurrentBagEntry entry = bag.borrow(1, TimeUnit.SECONDS);
+                assertNotNull(entry);
+                TProtocol protocol = new TBinaryProtocol(entry.getEntry());
+                long start = System.nanoTime();
+                assertThrows(TTransportException.class, protocol::readMessageBegin);
+                long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                assertTrue(elapsedMillis < 2_000L, "read should be aborted by socket timeout, elapsed=" + elapsedMillis);
+                bag.discard(entry);
+            } finally {
+                bag.close();
+            }
+        }
+    }
+
+    /**
+     * 配置成 null / 0 / 负数时必须回落到默认值：0 在连接池和 JDK socket 里都表示"无限等待"。
+     */
+    @Test
+    void invalidTimeoutConfigFallsBackToDefaults() {
+        ReferenceConfig<TServiceClient> config = new ReferenceConfig<>();
+        assertEquals(ReferenceConfig.DEFAULT_POOL_TIMEOUT_MILLIS, config.effectivePoolTimeout());
+        assertEquals(ReferenceConfig.DEFAULT_CONNECTION_TIMEOUT_MILLIS, config.effectiveConnectionTimeout());
+        assertEquals(ReferenceConfig.DEFAULT_SOCKET_TIMEOUT_MILLIS, config.effectiveSocketTimeout());
+
+        config.setPoolTimeout(0L);
+        config.setConnectionTimeout(-1L);
+        config.setSocketTimeout(null);
+        assertEquals(ReferenceConfig.DEFAULT_POOL_TIMEOUT_MILLIS, config.effectivePoolTimeout());
+        assertEquals(ReferenceConfig.DEFAULT_CONNECTION_TIMEOUT_MILLIS, config.effectiveConnectionTimeout());
+        assertEquals(ReferenceConfig.DEFAULT_SOCKET_TIMEOUT_MILLIS, config.effectiveSocketTimeout());
     }
 }

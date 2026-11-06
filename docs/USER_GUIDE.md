@@ -418,6 +418,17 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 
 > IP 自动探测逻辑：优先匹配网卡名含 `Intel` / `Realtek` / `Atheros` / `Broadcom` 的网卡；匹配不到时回退到第一个已启用、非回环、非虚拟且有 IPv4 的网卡；仍失败则回退 `InetAddress.getLocalHost()`。
 
+#### Consumer 级（Spring Boot 前缀 `autumn.consumer.*`）
+
+| Spring Boot 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `autumn.consumer.pool-timeout` | `10000` | 连接池借用超时（毫秒） |
+| `autumn.consumer.connection-timeout` | `1000` | TCP 建连超时（毫秒） |
+| `autumn.consumer.socket-timeout` | `3000` | 读响应超时（毫秒） |
+
+> 原生 API 通过 `ReferenceConfig` 设置同样的三项，未显式配置时默认借用 `1s` / 建连 `1s` / 读响应 `3s`。
+> **建连（TCP connect）耗时计入借用超时预算**：客户端先启动、服务端尚未监听时，调用会在借用超时内失败返回，不会卡在建连上。
+
 #### Consul 级（原生前缀 `consul.*`，Spring Boot 前缀 `autumn.consul.*`）
 
 | 原生配置项 | Spring Boot 配置项 | 默认值 | 说明 |
@@ -452,9 +463,9 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | `setInterfaceClass(Iface/Client)` | — | 接口类（thrift 生成的 Client 或 Iface） |
 | `setRegistryTypeEnum(...)` | — | `MULTICAST` / `CONSUL` / `NACOS` / `DIRECT` |
 | `setInstances(List<ConsumerConfig>)` | — | 直连实例列表（DIRECT 模式） |
-| `setPoolTimeout(ms)` | `1000` | 连接池借用超时（Spring Boot 注入默认 `10000`） |
-| `setSocketTimeout(ms)` | — | Socket 读超时（Spring Boot 注入默认 `3000`） |
-| `setConnectionTimeout(ms)` | — | 连接建立超时 |
+| `setPoolTimeout(ms)` | `1000` | 连接池借用超时（Spring Boot 默认 `10000`） |
+| `setSocketTimeout(ms)` | `3000` | 读响应超时（Spring Boot 默认 `3000`） |
+| `setConnectionTimeout(ms)` | `1000` | 建连超时（Spring Boot 默认 `1000`） |
 | `setConverter(Function)` | — | 协议到 Client 的转换器 |
 
 ### 5.3 完整示例配置

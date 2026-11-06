@@ -111,7 +111,7 @@ public class ConcurrentBag implements AutoCloseable {
                 staleRetries = 0;
             }
 
-            if (ensureCapacity() > 0) {
+            if (ensureCapacity(deadline) > 0) {
                 continue;
             }
 
@@ -148,9 +148,13 @@ public class ConcurrentBag implements AutoCloseable {
     /**
      * 按需扩容：名额判断在锁内，建连在锁外。
      *
+     * <p>建连（TCP connect）耗时计入本次借用的剩余预算：服务端未启动时连接可能长时间挂住，
+     * 这里用剩余预算截断建连超时，保证 {@code borrow} 不会超过调用方给的超时时间。</p>
+     *
+     * @param deadlineNanos 本次借用的截止时间（{@link System#nanoTime()} 口径），预算耗尽后不再建连
      * @return 本次新建的连接数
      */
-    private int ensureCapacity() {
+    private int ensureCapacity(long deadlineNanos) {
         if (closed) {
             return 0;
         }
@@ -166,12 +170,17 @@ public class ConcurrentBag implements AutoCloseable {
             if (countOf(instance) >= maxConnectionsOf(instance)) {
                 continue;
             }
+            // 每建一条连接前重新计算预算，多实例扩容的总耗时同样受借用超时约束
+            long remainingMillis = NANOSECONDS.toMillis(deadlineNanos - System.nanoTime());
+            if (remainingMillis <= 0) {
+                break;
+            }
             if (!reserveSlot()) {
                 break;
             }
             ConcurrentBagEntry entry;
             try {
-                entry = converter(instance);
+                entry = converter(instance, remainingMillis);
             } finally {
                 creating.decrementAndGet();
             }
@@ -238,7 +247,7 @@ public class ConcurrentBag implements AutoCloseable {
                 .count();
     }
 
-    private ConcurrentBagEntry converter(ConsumerConfig consumerConfig) {
+    private ConcurrentBagEntry converter(ConsumerConfig consumerConfig, long maxConnectMillis) {
         String ip = consumerConfig.getIp();
         Integer port = consumerConfig.getPort();
         String name = consumerConfig.getName();
@@ -246,11 +255,17 @@ public class ConcurrentBag implements AutoCloseable {
             return null;
         }
 
+        long connectTimeout = Math.min(config.effectiveConnectionTimeout(), maxConnectMillis);
+        if (connectTimeout <= 0) {
+            // 剩余预算已耗尽，不再发起建连
+            return null;
+        }
+
         TSocket tsocket = null;
         TTransport transport = null;
         try {
             tsocket = new TSocket(ip, port);
-            applyTimeout(tsocket);
+            applyTimeout(tsocket, connectTimeout, config.effectiveSocketTimeout());
             transport = new TFramedTransport(tsocket);
             transport.open();
             ConcurrentBagEntry entry = new ConcurrentBagEntryImpl<>(name, ip, port, transport);
@@ -267,15 +282,20 @@ public class ConcurrentBag implements AutoCloseable {
         }
     }
 
-    private void applyTimeout(TSocket tsocket) {
-        Long connectionTimeout = config.getConnectionTimeout();
-        if (Objects.nonNull(connectionTimeout) && connectionTimeout > 0) {
-            tsocket.setConnectTimeout(Math.toIntExact(connectionTimeout));
+    /**
+     * 建连与读响应都必须有上限：0 在 JDK 中表示无限等待，负值会抛异常，因此统一收敛到正数。
+     */
+    private static void applyTimeout(TSocket tsocket, long connectMillis, long socketMillis) {
+        tsocket.setConnectTimeout(toTimeoutMillis(connectMillis, ReferenceConfig.DEFAULT_CONNECTION_TIMEOUT_MILLIS));
+        tsocket.setSocketTimeout(toTimeoutMillis(socketMillis, ReferenceConfig.DEFAULT_SOCKET_TIMEOUT_MILLIS));
+    }
+
+    static int toTimeoutMillis(long millis, long fallbackMillis) {
+        long value = millis <= 0 ? fallbackMillis : millis;
+        if (value <= 0) {
+            value = 1L;
         }
-        Long socketTimeout = config.getSocketTimeout();
-        if (Objects.nonNull(socketTimeout) && socketTimeout > 0) {
-            tsocket.setTimeout(Math.toIntExact(socketTimeout));
-        }
+        return (int) Math.min(value, Integer.MAX_VALUE);
     }
 
     private boolean validate(ConcurrentBagEntry entry) {
@@ -426,7 +446,7 @@ public class ConcurrentBag implements AutoCloseable {
             }
             ConcurrentBagEntry entry;
             try {
-                entry = converter(consumerConfig);
+                entry = converter(consumerConfig, config.effectiveConnectionTimeout());
             } finally {
                 creating.decrementAndGet();
             }

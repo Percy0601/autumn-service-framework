@@ -75,10 +75,8 @@ public final class AutumnPool implements AutoCloseable {
         }
         try {
             ReferenceConfig<? extends TServiceClient> config = bag.getConfig();
-            long poolTimeout = 1000L;
-            if(Objects.nonNull(config) && Objects.nonNull(config.getPoolTimeout())) {
-                poolTimeout = config.getPoolTimeout();
-            }
+            // 借用超时必须为正：连接池内部用 0 表示立即失败，这里统一回落到默认 1s
+            long poolTimeout = Objects.isNull(config) ? 1_000L : config.effectivePoolTimeout();
             ConcurrentBagEntry entry = bag.borrow(poolTimeout, TimeUnit.MILLISECONDS);
             if (Objects.nonNull(entry)) {
                 AutumnMetrics.borrowed(service);
