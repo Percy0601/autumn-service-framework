@@ -33,7 +33,7 @@
 | 模块 | 说明 |
 | --- | --- |
 | `autumn-api` | 注解、配置类、扩展点（SPI）、控制面 Thrift 定义 |
-| `autumn-protocol-extension` | 协议扩展：隐式传参（field-0 attachment）、泳道路由、SPI 扩展点 |
+| `autumn-protocol-extension` | 协议扩展：隐式传参（field-0 attachment）、泳道路由、SPI 扩展点、Thrift 动态泛化调用（无 stub，见 [PROTOCOL-EXTENSION.md](docs/PROTOCOL-EXTENSION.md)） |
 | `autumn-compiler` | JSR-269 注解处理器 + FreeMarker 模板（编译期生成代码） |
 | `autumn-core` | 核心运行时：`AutumnBootstrap`、Provider / Consumer、连接池、控制面实现 |
 | `autumn-registry-extension` | 注册中心适配层：基于 [autumn-cloud-extension](https://github.com/Percy0601/autumn-cloud-extension) 实现 `Registry` / `Discovery` SPI |

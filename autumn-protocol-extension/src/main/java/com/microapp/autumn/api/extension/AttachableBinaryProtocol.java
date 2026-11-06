@@ -37,6 +37,8 @@ public class AttachableBinaryProtocol extends TBinaryProtocol {
 
     private Map<String, String> attachment = new HashMap<>();
     private boolean readingRequest;
+    /** Explicit header injection for non-ThreadLocal callers (e.g. a WebFlux gateway). */
+    private Map<String, String> explicitAttachment;
 
     public AttachableBinaryProtocol(TTransport trans) {
         super(trans);
@@ -109,7 +111,9 @@ public class AttachableBinaryProtocol extends TBinaryProtocol {
     }
 
     private Map<String, String> outboundAttachment() {
-        Map<String, String> values = new LinkedHashMap<>(AttachmentContext.snapshot());
+        Map<String, String> source = explicitAttachment == null
+                ? AttachmentContext.snapshot() : explicitAttachment;
+        Map<String, String> values = new LinkedHashMap<>(source);
         String trace = UUID.randomUUID().toString().replace("-", "");
         values.putIfAbsent("appId", DEFAULT_APP_ID);
         values.putIfAbsent("appName", DEFAULT_APP_NAME);
@@ -150,6 +154,15 @@ public class AttachableBinaryProtocol extends TBinaryProtocol {
 
     public Map<String, String> getAttachment() {
         return Collections.unmodifiableMap(new HashMap<>(attachment));
+    }
+
+    /**
+     * Use an explicit attachment map for outbound calls instead of the thread-local
+     * {@link AttachmentContext}. Passing {@code null} restores the default behaviour.
+     * Required on event-loop runtimes where a ThreadLocal would leak across requests.
+     */
+    public void setExplicitAttachment(Map<String, String> values) {
+        this.explicitAttachment = values == null ? null : new LinkedHashMap<>(values);
     }
 
     /** 显式写出当前隐式参数；通常由 writeMessageBegin 自动完成。 */
