@@ -6,7 +6,7 @@
     <parent>
         <groupId>xyz.we-win.autumn</groupId>
         <artifactId>autumn-spring-cloud-examples</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-RELEASE</version>
     </parent>
 
     <artifactId>autumn-spring-cloud-examples-consumer</artifactId>
@@ -46,7 +46,7 @@
         <dependency>
             <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-spring-cloud-examples-api</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
         <!-- WebClient 客户端（HttpExchange 声明式调用） -->
         <dependency>

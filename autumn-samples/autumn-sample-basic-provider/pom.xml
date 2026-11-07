@@ -3,7 +3,7 @@
     <parent>
         <artifactId>autumn-samples</artifactId>
         <groupId>xyz.we-win.autumn</groupId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-RELEASE</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -41,7 +41,7 @@
         <dependency>
             <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-sample-api</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 

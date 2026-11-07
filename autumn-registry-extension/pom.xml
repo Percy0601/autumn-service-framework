@@ -3,7 +3,7 @@
     <parent>
         <artifactId>autumn-service-framework</artifactId>
         <groupId>xyz.we-win.autumn</groupId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-RELEASE</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -12,7 +12,7 @@
 
     <name>autumn-registry-extension</name>
     <description>autumn registry/discovery adapter backed by autumn-cloud-extension (consul / nacos / multicast)</description>
-    <url>http://maven.apache.org</url>
+    <url>https://github.com/Percy0601/autumn-service-framework</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
