@@ -1,4 +1,4 @@
-namespace java com.microapp.autumn.sample.api
+namespace java xyz.wewin.autumn.sample.api
 struct User {
     1: required i32 userId;
     2: required string username;

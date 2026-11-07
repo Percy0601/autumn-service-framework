@@ -10,7 +10,7 @@
 #   - a running Consul agent is only needed at runtime, not for the build
 #
 # Reflection / resource / dynamic-proxy metadata is generated at build time by the
-# JSR-269 processors (META-INF/native-image/com.micro-app/autumn-*-hints/) and by
+# JSR-269 processors (META-INF/native-image/xyz.we-win.autumn/autumn-*-hints/) and by
 # Spring AOT RuntimeHints; no -H:*ConfigurationResources flags and no hand-written
 # reflect-config.json are needed.
 #

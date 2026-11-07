@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.micro-app</groupId>
+        <groupId>xyz.we-win.autumn</groupId>
         <artifactId>autumn-spring-cloud-examples</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
@@ -17,7 +17,7 @@
 
     <properties>
         <java.version>25</java.version>
-        <start-class>com.microapp.autumn.springcloud.examples.consumer.ConsumerBootstrap</start-class>
+        <start-class>xyz.wewin.autumn.springcloud.examples.consumer.ConsumerBootstrap</start-class>
     </properties>
 
     <dependencies>
@@ -44,7 +44,7 @@
         </dependency>
         <!-- 共享服务契约 -->
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-spring-cloud-examples-api</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>

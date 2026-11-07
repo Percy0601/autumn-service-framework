@@ -66,7 +66,7 @@ cd autumn-samples/autumn-sample-benchmarker
 mvn package -DskipTests
 mvn dependency:build-classpath -Dmdep.outputFile=/tmp/bm_cp.txt
 java -cp "target/autumn-sample-benchmarker.jar:$(cat /tmp/bm_cp.txt)" \
-  com.microapp.autumn.sample.benchmarker.BenchmarkRunner \
+  xyz.wewin.autumn.sample.benchmarker.BenchmarkRunner \
   --thrift-host 127.0.0.1 --thrift-port 30880 \
   --http-url "http://127.0.0.1:8083/echo?msg=hello" \
   --threads 1,8,16,32 --requests 50000

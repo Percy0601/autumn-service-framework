@@ -18,7 +18,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
-    <groupId>com.micro-app</groupId>
+    <groupId>xyz.we-win.autumn</groupId>
     <artifactId>autumn-service-framework</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -45,7 +45,7 @@
         <commons-lang3.version>3.19.0</commons-lang3.version>
         <commons-collections4.version>4.5.0</commons-collections4.version>
         <javax-annotation-api.version>1.3.2</javax-annotation-api.version>
-        <autumn-cloud-extension.version>1.0.0-SNAPSHOT</autumn-cloud-extension.version>
+        <autumn-cloud-extension.version>1.0.0-RELEASE</autumn-cloud-extension.version>
     </properties>
 
     <dependencies>
@@ -86,42 +86,42 @@
                 <version>${javax-annotation-api.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-core</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-api</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-protocol-extension</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-compiler</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-registry-extension</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.autumn.cloud</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-cloud-extension-common</artifactId>
                 <version>${autumn-cloud-extension.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-spring-boot-autoconfigure</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-spring-boot-starter</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>

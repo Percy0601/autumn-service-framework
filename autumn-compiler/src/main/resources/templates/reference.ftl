@@ -14,15 +14,15 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
 <#list methods as method>
     @Override
     public ${method.returnType} ${method.name}(<#list method.paramTypes as paramType><#if (paramType_index > 0)>, </#if>${paramType} var${paramType_index}</#list>) throws org.apache.thrift.TException {
-        com.microapp.autumn.core.pool.impl.ConcurrentBagEntry entry = null;
+        xyz.wewin.autumn.core.pool.impl.ConcurrentBagEntry entry = null;
         boolean discard = false;
         try {
-            entry = com.microapp.autumn.core.pool.AutumnPool.getInstance().borrow(service);
+            entry = xyz.wewin.autumn.core.pool.AutumnPool.getInstance().borrow(service);
             if (entry == null) {
-                throw new com.microapp.autumn.api.util.AutumnException("autumn reference no available instance, service: " + service);
+                throw new xyz.wewin.autumn.api.util.AutumnException("autumn reference no available instance, service: " + service);
             }
             org.apache.thrift.transport.TTransport transport = entry.getEntry();
-            org.apache.thrift.protocol.TProtocol protocol = new com.microapp.autumn.api.extension.AttachableBinaryProtocol(transport);
+            org.apache.thrift.protocol.TProtocol protocol = new xyz.wewin.autumn.api.extension.AttachableBinaryProtocol(transport);
             org.apache.thrift.protocol.TMultiplexedProtocol multiplexedProtocol = new org.apache.thrift.protocol.TMultiplexedProtocol(protocol, ${ifaceName}.class.getName());
             ${outerName}.Client client = new ${outerName}.Client(multiplexedProtocol);
             <#if method.returnType == "void">
@@ -36,9 +36,9 @@ public final class _${outerSimpleName}Proxy implements ${ifaceName} {
         } finally {
             if (entry != null) {
                 if (discard) {
-                    com.microapp.autumn.core.pool.AutumnPool.getInstance().discard(entry);
+                    xyz.wewin.autumn.core.pool.AutumnPool.getInstance().discard(entry);
                 } else {
-                    com.microapp.autumn.core.pool.AutumnPool.getInstance().requite(entry);
+                    xyz.wewin.autumn.core.pool.AutumnPool.getInstance().requite(entry);
                 }
             }
         }

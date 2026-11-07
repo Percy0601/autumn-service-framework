@@ -2,7 +2,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>autumn-samples</artifactId>
-        <groupId>com.micro-app</groupId>
+        <groupId>xyz.we-win.autumn</groupId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -25,7 +25,7 @@
             <artifactId>spring-boot</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-spring-boot-starter</artifactId>
         </dependency>
         <dependency>
@@ -62,17 +62,17 @@
             <artifactId>logback-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-sample-api</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-sample-boot-native-hints</artifactId>
             <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-compiler</artifactId>
             <scope>provided</scope>
         </dependency>
@@ -98,12 +98,12 @@
                             <version>${lombok.version}</version>
                         </path>
                         <path>
-                            <groupId>com.micro-app</groupId>
+                            <groupId>xyz.we-win.autumn</groupId>
                             <artifactId>autumn-compiler</artifactId>
                             <version>1.0.0-SNAPSHOT</version>
                         </path>
                         <path>
-                            <groupId>com.micro-app</groupId>
+                            <groupId>xyz.we-win.autumn</groupId>
                             <artifactId>autumn-api</artifactId>
                             <version>1.0.0-SNAPSHOT</version>
                         </path>
@@ -132,12 +132,12 @@
                         <groupId>org.graalvm.buildtools</groupId>
                         <artifactId>native-maven-plugin</artifactId>
                         <configuration>
-                            <mainClass>com.microapp.autumn.sample.boot.provider.BootSampleBootstrap</mainClass>
+                            <mainClass>xyz.wewin.autumn.sample.boot.provider.BootSampleBootstrap</mainClass>
                             <imageName>autumn-sample-boot-provider-native</imageName>
                             <buildArgs>
                                 <buildArg>-H:+ReportExceptionStackTraces</buildArg>
                                 <!-- 反射/资源/动态代理元数据全部由 autumn-compiler 在编译期生成到
-                                     target/classes/META-INF/native-image/com.micro-app/autumn-*-hints/，
+                                     target/classes/META-INF/native-image/xyz.we-win.autumn/autumn-*-hints/，
                                      native-image 自动扫描 classpath 合并，无需 -H:*ConfigurationResources 手工加载 -->
                             </buildArgs>
                         </configuration>

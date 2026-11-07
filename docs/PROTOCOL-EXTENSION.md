@@ -2,7 +2,7 @@
 
 ## 1. 模块迁移
 
-把 `autumn-api` 中 `com.microapp.autumn.api.extension` 的 7 个类整体迁入新模块
+把 `autumn-api` 中 `xyz.wewin.autumn.api.extension` 的 7 个类整体迁入新模块
 `autumn-protocol-extension`（`AttachableBinaryProtocol` / `AttachableProcessor` /
 `AttachmentContext` / `AutumnFilter` / `JoinPoint` / `AutumnServiceAssembler` / `TrafficRouter`）。
 
@@ -54,7 +54,7 @@ EXCEPTION : TMessage + TApplicationException
 
 ## 3. 动态泛化调用 v1
 
-包：`com.microapp.autumn.protocol.generic`（不依赖 Spring / JSON 库，只依赖 libthrift + slf4j）。
+包：`xyz.wewin.autumn.protocol.generic`（不依赖 Spring / JSON 库，只依赖 libthrift + slf4j）。
 
 | 组件 | 职责 |
 | --- | --- |

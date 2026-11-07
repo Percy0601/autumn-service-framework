@@ -1,2 +1,2 @@
-com.microapp.autumn.compiler.ReferenceServiceProcessor
-com.microapp.autumn.compiler.ExportServiceProcessor
+xyz.wewin.autumn.compiler.ReferenceServiceProcessor
+xyz.wewin.autumn.compiler.ExportServiceProcessor

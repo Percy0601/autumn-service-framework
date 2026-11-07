@@ -1,4 +1,4 @@
-namespace java com.microapp.autumn.api
+namespace java xyz.wewin.autumn.api
 
 service ControlApi {
     // every control plane call carries a shared token; empty token disables authentication

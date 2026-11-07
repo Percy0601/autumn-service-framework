@@ -2,7 +2,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>autumn-service-framework</artifactId>
-        <groupId>com.micro-app</groupId>
+        <groupId>xyz.we-win.autumn</groupId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -22,19 +22,19 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-protocol-extension</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.micro-app</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-core</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.autumn.cloud</groupId>
+            <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-cloud-extension-common</artifactId>
         </dependency>
     </dependencies>

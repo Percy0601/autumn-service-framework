@@ -46,7 +46,7 @@
 
 ```xml
 <dependency>
-    <groupId>com.micro-app</groupId>
+    <groupId>xyz.we-win.autumn</groupId>
     <artifactId>autumn-spring-boot-starter</artifactId>
     <version>1.0.0-SNAPSHOT</version>
 </dependency>
@@ -180,7 +180,7 @@ curl http://127.0.0.1:18081/boot-sample-consumer/hello
 
 - autumn 自身：`@Export` / `@Reference` 的注解处理器在编译期把 `_XxxServiceRegister`、`_XxxProxy`、
   `Xxx$Client`、`@Reference` 注入字段（`allowWrite`）、动态代理接口组写入
-  `target/classes/META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`，
+  `target/classes/META-INF/native-image/xyz.we-win.autumn/autumn-{export,reference}-hints/`，
   随模块 jar 打包，native-image 构建时自动合并 —— 不需要 `-H:ReflectionConfigurationResources` /
   `-H:DynamicProxyConfigurationResources` 手工加载，业务工程也不用维护反射清单。
 - 嵌入式 Tomcat：`TomcatWebServer#disableBindOnInit` 会反射调用 `AbstractProtocol#getProperty`，

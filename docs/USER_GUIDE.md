@@ -35,13 +35,13 @@ Autumn Framework 是一个基于 **Apache Thrift** 的服务治理框架，定�
 
 | 模块 | 坐标 | 职责 |
 | --- | --- | --- |
-| `autumn-api` | `com.micro-app:autumn-api` | 注解、配置类、工具类、控制面 Thrift 定义 |
-| `autumn-protocol-extension` | `com.micro-app:autumn-protocol-extension` | 协议扩展：隐式传参（field-0 attachment）、`TrafficRouter` 泳道路由、SPI 扩展点 |
-| `autumn-compiler` | `com.micro-app:autumn-compiler` | JSR-269 注解处理器 + FreeMarker 模板（编译期生成代码） |
-| `autumn-core` | `com.micro-app:autumn-core` | 运行时核心：`AutumnBootstrap`、Provider/Consumer、连接池、控制面实现 |
-| `autumn-registry-extension` | `com.micro-app:autumn-registry-extension` | 注册中心适配层：基于 `autumn-cloud-extension` 的 `ServiceRegistryClient`/`ServiceDiscoveryClient` 实现 `Registry`/`Discovery` SPI，支持 multicast / consul / nacos |
-| `autumn-spring-boot-starter` | `com.micro-app:autumn-spring-boot-starter` | Spring Boot 自动装配 |
-| `autumn-sample-api` | `com.micro-app:autumn-sample-api` | 示例 Thrift 接口 jar（`SomeService`） |
+| `autumn-api` | `xyz.we-win.autumn:autumn-api` | 注解、配置类、工具类、控制面 Thrift 定义 |
+| `autumn-protocol-extension` | `xyz.we-win.autumn:autumn-protocol-extension` | 协议扩展：隐式传参（field-0 attachment）、`TrafficRouter` 泳道路由、SPI 扩展点 |
+| `autumn-compiler` | `xyz.we-win.autumn:autumn-compiler` | JSR-269 注解处理器 + FreeMarker 模板（编译期生成代码） |
+| `autumn-core` | `xyz.we-win.autumn:autumn-core` | 运行时核心：`AutumnBootstrap`、Provider/Consumer、连接池、控制面实现 |
+| `autumn-registry-extension` | `xyz.we-win.autumn:autumn-registry-extension` | 注册中心适配层：基于 `autumn-cloud-extension` 的 `ServiceRegistryClient`/`ServiceDiscoveryClient` 实现 `Registry`/`Discovery` SPI，支持 multicast / consul / nacos |
+| `autumn-spring-boot-starter` | `xyz.we-win.autumn:autumn-spring-boot-starter` | Spring Boot 自动装配 |
+| `autumn-sample-api` | `xyz.we-win.autumn:autumn-sample-api` | 示例 Thrift 接口 jar（`SomeService`） |
 
 > 旧的 `autumn-registry-consul` 模块与 `autumn-core` 中的 `MulticastRegistry` 自研实现已删除，注册发现统一收敛到 [autumn-cloud-extension](https://github.com/Percy0601/autumn-cloud-extension)（纯 Java、零 Spring 依赖、直连 HTTP/组播实现，GraalVM Native 友好）。
 
@@ -72,13 +72,13 @@ Autumn Framework 是一个基于 **Apache Thrift** 的服务治理框架，定�
 ```xml
 <dependencies>
     <dependency>
-        <groupId>com.micro-app</groupId>
+        <groupId>xyz.we-win.autumn</groupId>
         <artifactId>autumn-spring-boot-starter</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
     <!-- 业务 Thrift 接口 jar（含 thrift 生成的 Iface/Processor/Client） -->
     <dependency>
-        <groupId>com.micro-app</groupId>
+        <groupId>xyz.we-win.autumn</groupId>
         <artifactId>autumn-sample-api</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </dependency>
@@ -144,12 +144,12 @@ public class SomeConsumer {
                 <version>${lombok.version}</version>
             </path>
             <path>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-compiler</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </path>
             <path>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-api</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </path>
@@ -172,9 +172,9 @@ public class SomeConsumer {
 **Provider**
 
 ```java
-import com.microapp.autumn.api.config.ServiceConfig;
-import com.microapp.autumn.api.extension.AttachableProcessor;
-import com.microapp.autumn.core.AutumnBootstrap;
+import xyz.wewin.autumn.api.config.ServiceConfig;
+import xyz.wewin.autumn.api.extension.AttachableProcessor;
+import xyz.wewin.autumn.core.AutumnBootstrap;
 
 public class ProviderMain {
     public static void main(String[] args) {
@@ -189,11 +189,11 @@ public class ProviderMain {
 **Consumer**
 
 ```java
-import com.microapp.autumn.api.config.ReferenceConfig;
-import com.microapp.autumn.api.enums.RegistryTypeEnum;
-import com.microapp.autumn.core.pool.AutumnPool;
-import com.microapp.autumn.core.pool.impl.ConcurrentBagEntry;
-import com.microapp.autumn.core.server.AutumnConsumer;
+import xyz.wewin.autumn.api.config.ReferenceConfig;
+import xyz.wewin.autumn.api.enums.RegistryTypeEnum;
+import xyz.wewin.autumn.core.pool.AutumnPool;
+import xyz.wewin.autumn.core.pool.impl.ConcurrentBagEntry;
+import xyz.wewin.autumn.core.server.AutumnConsumer;
 
 public class ConsumerMain {
     public static void main(String[] args) throws Exception {
@@ -252,7 +252,7 @@ public class ConsumerMain {
 | `nacos` | `NacosBackend`（extension OpenAPI 直连） | 多机 / 生产，临时实例心跳保活 |
 | `direct` | —（不注册） | 直连 `ReferenceConfig.instances` / `@Reference(ipPort)` |
 
-> 注册中心实现通过 SPI（`META-INF/services/com.microapp.autumn.api.Registry` / `Discovery`，由 `autumn-registry-extension` 提供）加载，`RegistryBackends` 按 `application.registry-type` 选择后端，进程内单例。三种后端均由 `autumn-cloud-extension-common` 提供，零 SDK 依赖（Consul/Nacos 走原生 HTTP API），GraalVM Native Image 友好。
+> 注册中心实现通过 SPI（`META-INF/services/xyz.wewin.autumn.api.Registry` / `Discovery`，由 `autumn-registry-extension` 提供）加载，`RegistryBackends` 按 `application.registry-type` 选择后端，进程内单例。三种后端均由 `autumn-cloud-extension-common` 提供，零 SDK 依赖（Consul/Nacos 走原生 HTTP API），GraalVM Native Image 友好。
 
 ### 4.3 生命周期
 
@@ -286,7 +286,7 @@ public final class _SomeServiceImplServiceRegister implements AutumnServiceAssem
 }
 ```
 
-并自动在 `META-INF/services/com.microapp.autumn.api.extension.AutumnServiceAssembler` 注册。Spring Boot 的 `AutumnBeanPostProcessor` 优先通过 `ServiceLoader` 使用这些装配器导出服务，未生成时回退反射。
+并自动在 `META-INF/services/xyz.wewin.autumn.api.extension.AutumnServiceAssembler` 注册。Spring Boot 的 `AutumnBeanPostProcessor` 优先通过 `ServiceLoader` 使用这些装配器导出服务，未生成时回退反射。
 
 **`@Reference` → `_<OuterSimpleName>Proxy`**
 
@@ -321,7 +321,7 @@ public final class _SomeServiceProxy implements SomeService.Iface {
 #### Native Image 反射元数据（编译期生成 + AOT）
 
 注解处理器除了生成上面两类类，还会把 native-image 需要的元数据在**编译期**直接写进
-`target/classes/META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`：
+`target/classes/META-INF/native-image/xyz.we-win.autumn/autumn-{export,reference}-hints/`：
 
 | 目录 | 内容 | 使用方 |
 | --- | --- | --- |
@@ -700,7 +700,7 @@ mvn test
 
 框架调用面已零反射（JSR-269 生成代码 + SPI），注册发现实现零 SDK 依赖（原生 HTTP / JDK 组播）。native-image 需要的反射 / 动态代理 / 资源元数据在**构建期**全部就绪，仓库里没有手写 hints：
 
-- `@Export` / `@Reference` 注解处理器在编译期写出 `META-INF/native-image/com.micro-app/autumn-{export,reference}-hints/`（装配器、`_XxxProxy`、`Xxx$Client`、注入字段 `allowWrite`、`Iface` 动态代理组），随 jar 打包，`native-image` 自动合并，无需 `-H:*ConfigurationResources`（详见 [4.4](#44-编译期代码生成jsr-269)）；
+- `@Export` / `@Reference` 注解处理器在编译期写出 `META-INF/native-image/xyz.we-win.autumn/autumn-{export,reference}-hints/`（装配器、`_XxxProxy`、`Xxx$Client`、注入字段 `allowWrite`、`Iface` 动态代理组），随 jar 打包，`native-image` 自动合并，无需 `-H:*ConfigurationResources`（详见 [4.4](#44-编译期代码生成jsr-269)）；
 - 框架已知的资源、SPI 契约与注册中心 Jackson record 由 `AutumnRuntimeHints`（`@ImportRuntimeHints`）在 Spring AOT 阶段登记；
 - 三方 / 应用侧反射用 `RuntimeHintsRegistrar`、`@RegisterReflectionForBinding` 补齐（示例：共用模块 `autumn-sample-boot-native-hints` 的 `TomcatNativeHints`、`BootSampleBootstrap`）。
 

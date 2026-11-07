@@ -6,7 +6,7 @@
     </modules>
     <parent>
         <artifactId>autumn-service-framework</artifactId>
-        <groupId>com.micro-app</groupId>
+        <groupId>xyz.we-win.autumn</groupId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -30,7 +30,7 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>com.micro-app</groupId>
+                <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-spring-boot-autoconfigure</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>

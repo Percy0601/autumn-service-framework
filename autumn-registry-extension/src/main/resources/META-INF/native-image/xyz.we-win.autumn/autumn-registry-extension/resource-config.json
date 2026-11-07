@@ -1,0 +1,12 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "\\QMETA-INF/services/xyz.wewin.autumn.api.Registry\\E"
+      },
+      {
+        "pattern": "\\QMETA-INF/services/xyz.wewin.autumn.api.Discovery\\E"
+      }
+    ]
+  }
+}
