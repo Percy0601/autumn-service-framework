@@ -433,6 +433,11 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | `application.multicast.ip` | `autumn.multicast.ip` | `224.0.0.1` | 多播组播地址 |
 | `application.multicast.port` | `autumn.multicast.port` | `5555` | 多播端口 |
 | `application.multicast.network-interface` | `autumn.multicast.network-interface` | 自动选择 | 多播绑定的网卡名（多网卡环境显式指定） |
+| `application.host-ip` | `autumn.host-ip` | 自动探测 | 显式注册 IP，优先级低于 `provider.ip`；也可由 `AUTUMN_HOST_IP` 环境变量注入 |
+| `application.network-interface` | `autumn.network-interface` | 自动探测 | 网卡名 / displayName / 本机 IPv4，自动探测时强制使用该网卡 |
+| `application.preferred-networks` | `autumn.preferred-networks` | 空 | IPv4 CIDR 白名单（逗号分隔），命中的地址优先注册 |
+| `application.ignored-interfaces` | `autumn.ignored-interfaces` | 空 | 追加排除的网卡名前缀（逗号分隔） |
+| `application.network-probe-target` | `autumn.network-probe-target` | `223.5.5.5:53` | 出站路由探测目标，`off` 关闭 |
 | `application.traffic` | `autumn.traffic` | 空 | 泳道标识，写入实例元数据 `traffic`；无隐式参数时作为应用默认泳道 |
 | `application.traffic-parameter` | `autumn.traffic-parameter` | `traffic,X-Traffic` | 承载泳道的隐式参数名（逗号分隔，按优先级） |
 | `application.traffic-fallback` | `autumn.traffic-fallback` | `true` | 同泳道无实例时是否回退基线泳道 `main` |
@@ -452,7 +457,14 @@ Spring Boot 场景：`autumn.*` 前缀配置由 `AutumnProperties` 绑定，`Aut
 | `provider.timeout` | `autumn.provider.timeout` | `3` | 服务处理超时（秒） |
 | `provider.ip` | `autumn.provider.ip` | 自动探测 | 服务绑定/注册 IP；多网卡或探测异常时建议显式配置 |
 
-> IP 自动探测逻辑：优先匹配网卡名含 `Intel` / `Realtek` / `Atheros` / `Broadcom` 的网卡；匹配不到时回退到第一个已启用、非回环、非虚拟且有 IPv4 的网卡；仍失败则回退 `InetAddress.getLocalHost()`。
+> IP 自动探测逻辑（`NetworkAddressResolver`，注册 IP 与组播出口网卡共用）：
+> ① 显式 `application.host-ip` / `AUTUMN_HOST_IP` 直接生效，`application.network-interface` 可写网卡名或本机 IPv4；
+> ② 通过 UDP `connect` 到远端目标（默认 `223.5.5.5:53`，仅让内核查路由表选源地址，不发送数据包，离线也不影响）得到出口 IP，命中的候选加最高权重；
+> ③ 排除回环、未启用、点到点、链路本地（169.254）以及容器 / 隧道虚拟网卡（`docker0`、`br-*`、`bridge*`、`veth*`、`virbr*`、`cni*`、`flannel*`、`cali*`、`tun*`、`utun*`、`wg*`、`tailscale*` 等）；
+> ④ 剩余候选按 CIDR 白名单、物理网卡名（`eth*`/`en*`/`bond*` 等）、RFC1918 私网地址打分排序，同分保持枚举顺序；
+> ⑤ 机器上只剩虚拟网卡时降级使用（避免注册直接失败），最后兜底 `InetAddress.getLocalHost()`。
+>
+> 旧实现只按网卡 displayName 是否含 `Intel` / `Realtek` 等厂商字样挑选，Linux 网卡名为 `ens33` / `eth0`，永远匹配不到，于是退化成「枚举到的第一张有 IPv4 的网卡」——安装 Docker 后会误注册 `docker0` 的 `172.17.0.1`。启动时可查看 INFO 日志 `autumn host address selected: ip=..., interface=..., reason=..., interfaces: ...` 核对结果。
 
 #### Consumer 级（Spring Boot 前缀 `autumn.consumer.*`）
 
@@ -677,9 +689,22 @@ mvn test
 
 ## 11. 常见问题
 
-**Q1：Provider 注册的 IP 不对（如 127.0.0.1 / 容器内网 IP）？**
+**Q1：Provider 注册的 IP 不对（如 `127.0.0.1` / `172.17.0.1` / 容器内网 IP）？**
 
-显式配置 `provider.ip`（或 `autumn.provider.ip`）为对外可达地址。网卡选择统一由 `CommonUtil.getNetIf(preferred)` 完成：优先显式 `application.multicast.network-interface`，否则用注册 IP 反查持有该 IP 的网卡，保证注册 IP 与组播出口一致；未指定时退回物理网卡优先的启发式选择。
+先看启动日志 `autumn host address selected: ip=..., interface=..., reason=..., interfaces: ...`，里面会列出本机全部带 IPv4 的网卡及最终选择依据。自动判定不符合预期时按顺序显式覆盖：
+
+```properties
+# 1) 优先级最高：直接指定注册地址（多机 / 虚拟机部署最稳妥）
+autumn.provider.ip=192.168.0.102
+# 2) 或让所有实例统一用同一地址（可用环境变量 AUTUMN_HOST_IP 注入）
+# autumn.host-ip=192.168.0.102
+# 3) 或只固定网卡，IP 仍从该网卡上自动取
+# autumn.network-interface=ens33
+# autumn.preferred-networks=192.168.0.0/24
+# autumn.ignored-interfaces=br-,veth
+```
+
+`docker0` / `br-*` / `bridge*` / `veth*` 等容器网桥已被自动排除，无需再手工忽略；出站路由探测用 `autumn.network-probe-target=off` 可关闭。注册 IP 与组播出口网卡由 `NetworkAddressResolver` 统一判定：显式注册 IP 能反查到持有它的网卡时用它，若是 NAT/EIP 或 `127.0.0.1`，组播出口会退回自动选出的物理网卡，避免绑到 `lo`。
 
 **Q2：编译报 `NoClassDefFoundError`（如 `com/microapp/autumn/api/annotation/Reference`、`freemarker/template/Configuration`）？**
 

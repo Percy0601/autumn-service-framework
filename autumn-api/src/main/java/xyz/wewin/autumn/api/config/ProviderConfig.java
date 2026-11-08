@@ -62,6 +62,8 @@ public class ProviderConfig {
         if(Boolean.TRUE.equals(initialized)) {
             return;
         }
+        // 非 Spring 场景没有 ApplicationConfig.init，这里同样装载一次网络选择参数
+        CommonUtil.configureNetwork(properties);
         String enabledValue = properties.getProperty("provider.enabled");
         if(Objects.nonNull(enabledValue) && enabledValue.length() > 0) {
             Boolean _enabled = Boolean.valueOf(enabledValue);

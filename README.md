@@ -90,11 +90,25 @@ Spring Boot 场景统一使用 `autumn.*` 前缀（由 `AutumnProperties` 绑定
 | `autumn.multicast.ip` | `224.0.0.1` | 组播地址（multicast 后端） |
 | `autumn.multicast.port` | `5555` | 组播端口（multicast 后端） |
 | `autumn.multicast.network-interface` | 自动选择 | 组播绑定网卡名，多网卡环境建议显式指定 |
+| `autumn.host-ip` | 自动探测 | 显式注册 IP；优先级低于 `autumn.provider.ip`，也可用环境变量 `AUTUMN_HOST_IP` 注入 |
+| `autumn.network-interface` | 自动探测 | 指定网卡名 / displayName / 本机 IPv4，自动探测时强制走该网卡 |
+| `autumn.preferred-networks` | 空 | IPv4 CIDR 白名单（逗号分隔），命中的地址优先注册，如 `192.168.0.0/24,10.0.0.0/8` |
+| `autumn.ignored-interfaces` | 空 | 追加排除的网卡名前缀（逗号分隔），如 `veth,br-` |
+| `autumn.network-probe-target` | `223.5.5.5:53` | 出站路由探测目标，`off` 关闭；仅让内核选源地址，不发送数据包 |
 | `autumn.traffic` | 空 | 泳道标识，写入实例元数据；未带隐式参数时作为本应用的默认泳道 |
 | `autumn.traffic-parameter` | `traffic,X-Traffic` | 承载泳道的隐式参数名（逗号分隔，按优先级），`X-Traffic` 便于网关透传 |
 | `autumn.traffic-fallback` | `true` | 同泳道无实例时是否回退基线 `main`；关闭后找不到同泳道实例即无可用实例 |
 | `autumn.labels.<key>` | 空 | provider 注册时附加的实例标签，供 `label.<key>` 隐式参数筛选 |
 | `autumn.discovery-interval` | `5000` | 发现轮询间隔，毫秒（consul / nacos 后端） |
+
+> **多网卡 / Docker 环境**：注册 IP 由 `NetworkAddressResolver` 统一选择，容器 / 隧道虚拟网卡
+> （`docker0`、`br-*`、`bridge*`、`veth*`、`virbr*`、`cni*`、`flannel*`、`tun*`、`utun*`、`wg*` 等）会被排除，
+> 再用 UDP 路由探测（不发包）选出真实出口网卡，并按物理网卡名、私网地址、CIDR 白名单打分。
+> 旧实现按网卡厂商名匹配，Linux 上几乎永不命中，会退化成「第一张有 IPv4 的网卡」，
+> 装了 Docker 的虚拟机就会把 `172.17.0.1` 注册进注册中心。启动日志
+> `autumn host address selected: ip=..., interface=..., interfaces: ...` 可直接核对选择结果；
+> 自动判定不符合预期时按 `autumn.provider.ip` > `autumn.host-ip` > `autumn.network-interface` 的顺序显式覆盖。
+> 组播出口网卡始终与注册 IP 使用同一套判定，避免跨网卡发现不通。
 
 ### Provider 服务端（`autumn.provider.*` ｜ 原生前缀 `provider.*`）
 
@@ -102,7 +116,7 @@ Spring Boot 场景统一使用 `autumn.*` 前缀（由 `AutumnProperties` 绑定
 | --- | --- | --- |
 | `autumn.provider.enabled` | `true` | 是否启动 Thrift 服务端（纯消费端设为 `false`） |
 | `autumn.provider.port` | `30880` | Thrift 服务端监听端口 |
-| `autumn.provider.ip` | 自动探测 | 注册 IP；多网卡 / 容器环境建议显式配置 |
+| `autumn.provider.ip` | 自动探测 | 注册 IP，最高优先级；多网卡 / 容器环境建议显式配置 |
 | `autumn.provider.min-threads` | `0` | Worker 线程池最小线程数 |
 | `autumn.provider.max-threads` | `1` | Worker 线程池最大线程数 |
 | `autumn.provider.worker-keep-alive-time` | `60` | Worker 空闲保活，秒 |

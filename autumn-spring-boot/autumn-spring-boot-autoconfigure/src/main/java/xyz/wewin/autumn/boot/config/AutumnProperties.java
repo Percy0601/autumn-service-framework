@@ -83,6 +83,32 @@ public class AutumnProperties {
     private String multicastNetworkInterface;
 
     /**
+     * explicit host ip published to registry (lower priority than autumn.provider.ip)
+     */
+    private String hostIp;
+
+    /**
+     * network interface name / display name / local ipv4 used by auto detection;
+     * required on hosts with Docker bridges or several NICs
+     */
+    private String networkInterface;
+
+    /**
+     * preferred ipv4 CIDR list, comma separated, e.g. 192.168.0.0/24,10.0.0.0/8
+     */
+    private String preferredNetworks;
+
+    /**
+     * extra interface name prefixes to ignore, comma separated
+     */
+    private String ignoredInterfaces;
+
+    /**
+     * outbound route probe target host:port, default 223.5.5.5:53, "off" disables probing
+     */
+    private String networkProbeTarget;
+
+    /**
      * consumer load balance strategy: round-robin / random / least-connections
      */
     private String loadBalance = "round-robin";

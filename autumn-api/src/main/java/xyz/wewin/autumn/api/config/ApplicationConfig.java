@@ -116,6 +116,26 @@ public class ApplicationConfig {
      */
     private String multicastNetworkInterface;
     /**
+     * explicit host ip published to registry, lower priority than provider.ip
+     */
+    private String hostIp;
+    /**
+     * network interface name / display name / local ipv4 used by auto detection
+     */
+    private String networkInterface;
+    /**
+     * preferred ipv4 CIDR list, comma separated (e.g. 192.168.0.0/24,10.0.0.0/8)
+     */
+    private String preferredNetworks;
+    /**
+     * extra interface name prefixes to ignore, comma separated
+     */
+    private String ignoredInterfaces;
+    /**
+     * outbound route probe target host:port, "off" disables probing
+     */
+    private String networkProbeTarget;
+    /**
      * consumer load balance strategy: round-robin / random / least-connections
      */
     private String consumerLoadBalance;
@@ -157,6 +177,8 @@ public class ApplicationConfig {
         if(Objects.isNull(properties)) {
             return;
         }
+        // 注册 IP / 网卡选择参数必须在 ProviderConfig 探测 IP 之前生效
+        CommonUtil.configureNetwork(properties);
 
         String nameValue = properties.getProperty("application.name");
         if(Objects.isNull(nameValue) || nameValue.length() < 1) {
@@ -260,6 +282,12 @@ public class ApplicationConfig {
         String multicastNetworkInterfaceValue = properties.getProperty("application.multicast.network-interface");
         this.multicastNetworkInterface = (Objects.isNull(multicastNetworkInterfaceValue) || multicastNetworkInterfaceValue.length() < 1)
                 ? null : multicastNetworkInterfaceValue;
+
+        this.hostIp = properties.getProperty("application.host-ip");
+        this.networkInterface = properties.getProperty("application.network-interface");
+        this.preferredNetworks = properties.getProperty("application.preferred-networks");
+        this.ignoredInterfaces = properties.getProperty("application.ignored-interfaces");
+        this.networkProbeTarget = properties.getProperty("application.network-probe-target");
 
         String loadBalanceValue = properties.getProperty("consumer.load-balance");
         this.consumerLoadBalance = (Objects.isNull(loadBalanceValue) || loadBalanceValue.length() < 1)

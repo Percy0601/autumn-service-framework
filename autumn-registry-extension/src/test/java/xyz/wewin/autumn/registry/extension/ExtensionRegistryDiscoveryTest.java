@@ -65,7 +65,8 @@ class ExtensionRegistryDiscoveryTest {
         assertEquals("training-b", registration.getServiceId());
         assertEquals("training-b:127.0.0.1:30880", registration.getInstanceId());
         assertEquals("thrift://127.0.0.1:30880", registration.getUri());
-        assertEquals("thrift", registration.getMetadata().get("protocol"));
+        // 新版实例只声明 protocols（thrift / thrift,http），历史 protocol 由消费侧兼容
+        assertEquals("thrift", registration.getMetadata().get("protocols"));
         assertEquals("gray", registration.getTraffic());
 
         registry.shutdownHook();

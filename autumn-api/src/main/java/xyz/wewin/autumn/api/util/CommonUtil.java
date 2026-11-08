@@ -5,15 +5,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Enumeration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -40,27 +36,17 @@ public class CommonUtil {
         return interfacePath;
     }
 
+    /** 装载注册 IP / 网卡选择参数，需在 {@code ProviderConfig.init} 探测 IP 之前调用 */
+    public static void configureNetwork(Properties properties) {
+        NetworkAddressResolver.configure(properties);
+    }
+
+    /**
+     * 注册到服务中心的主机 IP。多网卡 / Docker 网桥的判定统一交给
+     * {@link NetworkAddressResolver}，此处保留原有 API 供上层调用。
+     */
     public static String getHostIpAddress() {
-        NetworkInterface netInterface = getNetIf();
-        if(Objects.isNull(netInterface)) {
-            // fallback to localhost when no eligible network interface found
-            try {
-                return InetAddress.getLocalHost().getHostAddress();
-            } catch (Exception e) {
-                log.warn("get local host address exception:", e);
-                return null;
-            }
-        }
-        Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
-        while (addresses.hasMoreElements()) {
-            InetAddress ip = addresses.nextElement();
-            if (ip != null) {
-                if (ip instanceof Inet4Address) {
-                    return ip.getHostAddress();
-                }
-            }
-        }
-        return null;
+        return NetworkAddressResolver.hostIpAddress();
     }
 
     public static NetworkInterface getNetIf() {
@@ -69,66 +55,19 @@ public class CommonUtil {
 
     /**
      * 统一网卡选择：显式指定的网卡名 / 注册 IP 优先命中，保证「注册 IP」与「组播出口」在同一张网卡。
-     * 未指定时退回启发式（优先物理网卡，否则第一张可用网卡）。
      *
      * @param preferred 网卡名、displayName 或该网卡上的 IPv4 地址，可为空
      */
     public static NetworkInterface getNetIf(String preferred) {
-        boolean explicit = Objects.nonNull(preferred) && !preferred.isBlank();
-        NetworkInterface fallback = null;
-        try {
-            Enumeration<NetworkInterface> allNetInterfaces = NetworkInterface.getNetworkInterfaces();
-            while (allNetInterfaces.hasMoreElements()) {
-                NetworkInterface netInterface = allNetInterfaces.nextElement();
-                if (netInterface.isLoopback() || netInterface.isVirtual() || !netInterface.isUp()) {
-                    continue;
-                }
-                if (explicit && (preferred.equals(netInterface.getName())
-                        || preferred.equals(netInterface.getDisplayName()))) {
-                    return netInterface;
-                }
-                Enumeration<InetAddress> addresses = netInterface.getInetAddresses();
-                boolean hasIpv4 = false;
-                boolean ipMatches = false;
-                while (addresses.hasMoreElements()) {
-                    InetAddress ip = addresses.nextElement();
-                    if (!(ip instanceof Inet4Address)) {
-                        continue;
-                    }
-                    hasIpv4 = true;
-                    if (explicit && (preferred.equals(ip.getHostAddress()) || preferred.equals(ip.getHostName()))) {
-                        ipMatches = true;
-                    }
-                }
-                if (!hasIpv4) {
-                    continue;
-                }
-                if (ipMatches) {
-                    return netInterface;
-                }
-                if (netInterface.getDisplayName().contains("Intel")
-                        || netInterface.getDisplayName().contains("Realtek")
-                        || netInterface.getDisplayName().contains("Atheros")
-                        || netInterface.getDisplayName().contains("Broadcom")) {
-                    return netInterface;
-                }
-                // remember first eligible interface as fallback(e.g. macOS en0 with no vendor keyword)
-                if (Objects.isNull(fallback)) {
-                    fallback = netInterface;
-                }
-            }
-        } catch (SocketException e) {
-            log.warn("get network interfaces exception:", e);
-        }
-        return fallback;
+        return NetworkAddressResolver.networkInterface(preferred);
     }
 
     /**
      * 供注册中心使用的网卡名（MulticastConfig.networkInterface 按 NetworkInterface.getByName 解析）。
+     * 回环地址会退回自动选出的物理网卡，避免组播绑到 lo。
      */
     public static String resolveNetworkInterface(String preferred) {
-        NetworkInterface netInterface = getNetIf(preferred);
-        return Objects.isNull(netInterface) ? null : netInterface.getName();
+        return NetworkAddressResolver.networkInterfaceName(preferred);
     }
 
     /**
