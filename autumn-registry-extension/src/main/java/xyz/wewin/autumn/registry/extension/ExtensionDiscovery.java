@@ -184,6 +184,11 @@ public class ExtensionDiscovery implements Discovery {
             if (Objects.isNull(instance) || Objects.isNull(instance.getHost()) || instance.getPort() <= 0) {
                 continue;
             }
+            // 同一服务名下可能还有 http 实例（spring-cloud 注册或双协议声明），thrift 客户端跳过；
+            // 未标注 protocol 的实例沿用既有语义，视为 thrift 可用，保持向后兼容
+            if (!isThriftInstance(instance)) {
+                continue;
+            }
             String key = instance.getHost() + ":" + instance.getPort();
             ConsumerConfig consumerConfig = current.get(key);
             if (Objects.isNull(consumerConfig)) {
@@ -215,9 +220,21 @@ public class ExtensionDiscovery implements Discovery {
                 .toList());
     }
 
-    /** 实例元数据快照，供任意标签选择器（label.*）匹配。 */
-    private static Map<String, String> metadataOf(ServiceInstance instance) {
+    /**
+     * 判断实例是否可作为 thrift 目标：显式声明 protocol 且不是 thrift 的实例跳过，
+     * 未声明 protocol 的实例按既有语义视为 thrift 可用。
+     */
+    private static boolean isThriftInstance(ServiceInstance instance) {
         Map<String, String> metadata = instance.getMetadata();
+        if (Objects.isNull(metadata)) {
+            return true;
+        }
+        String protocol = metadata.get("protocol");
+        return Objects.isNull(protocol) || protocol.isBlank() || "thrift".equalsIgnoreCase(protocol.trim());
+    }
+
+    /** 实例元数据快照，供任意标签选择器（label.*）匹配。 */
+    private static Map<String, String> metadataOf(ServiceInstance instance) {        Map<String, String> metadata = instance.getMetadata();
         if (Objects.isNull(metadata) || metadata.isEmpty()) {
             return Map.of();
         }

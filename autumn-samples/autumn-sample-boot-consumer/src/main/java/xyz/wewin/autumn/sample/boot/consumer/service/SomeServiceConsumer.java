@@ -10,7 +10,7 @@ import xyz.wewin.autumn.sample.api.SomeService;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * consumer role, @Reference(refer = "training-b") discover provider via multicast registry
+ * consumer role, @Reference(refer = "provider") discover provider via multicast registry
  *
  * @author: baoxin.zhao
  * @date: 2026/11/3
@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 public class SomeServiceConsumer {
 
-    @Reference(refer = "training-b")
+    @Reference(refer = "provider")
     private SomeService.Iface someService;
 
     public String echo(String msg) throws TException {

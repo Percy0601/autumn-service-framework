@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ImportRuntimeHints;
 import org.springframework.context.annotation.Role;
+import org.springframework.core.env.Environment;
 
 import xyz.wewin.autumn.boot.AutumnBeanPostProcessor;
 import xyz.wewin.autumn.boot.AutumnLifecycle;
@@ -40,7 +41,7 @@ public class AutumnAutoConfig {
     }
 
     @Bean
-    public AutumnLifecycle autumnLifecycle() {
-        return new AutumnLifecycle();
+    public AutumnLifecycle autumnLifecycle(Environment environment) {
+        return new AutumnLifecycle(environment);
     }
 }

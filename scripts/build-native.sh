@@ -36,11 +36,11 @@ MODULES="${MODULES:-autumn-samples/autumn-sample-boot-provider,autumn-samples/au
 
 if [ "${SKIP_INSTALL:-0}" != "1" ]; then
   echo "[1/2] install all modules (JDK 25)"
-  mvn -o -B -DskipTests clean install
+  mvn -B -U -DskipTests clean install
 fi
 
 echo "[2/2] AOT + native-image compile: $MODULES"
-mvn -o -B -Pnative -DskipTests -pl "$MODULES" native:compile
+mvn -B -U -Pnative -DskipTests -pl "$MODULES" native:compile
 
 echo "native images:"
 for m in ${MODULES//,/ }; do

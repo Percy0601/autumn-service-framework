@@ -20,7 +20,7 @@
 
     <groupId>xyz.we-win.autumn</groupId>
     <artifactId>autumn-service-framework</artifactId>
-    <version>1.0.0-RELEASE</version>
+    <version>1.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>autumn-service-framework</name>
     <description>Autumn Service Framework - Thrift-based RPC framework with Spring Boot integration</description>
@@ -46,7 +46,7 @@
         <connection>scm:git:git://github.com/Percy0601/autumn-service-framework.git</connection>
         <developerConnection>scm:git:ssh://github.com/Percy0601/autumn-service-framework.git</developerConnection>
         <url>https://github.com/Percy0601/autumn-service-framework</url>
-        <tag>v1.0.0-RELEASE</tag>
+        <tag>v1.1.0-SNAPSHOT</tag>
     </scm>
 
     <distributionManagement>

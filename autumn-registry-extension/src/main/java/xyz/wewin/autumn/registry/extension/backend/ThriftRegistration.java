@@ -1,6 +1,9 @@
 package xyz.wewin.autumn.registry.extension.backend;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -56,10 +59,71 @@ public final class ThriftRegistration implements Registration {
         }
         metadata.put("protocol", "thrift");
         metadata.put("application", service);
-        if (Objects.nonNull(applicationConfig.getTraffic()) && !applicationConfig.getTraffic().isBlank()) {
-            metadata.put(TrafficRouter.META_KEY, applicationConfig.getTraffic());
+        metadata.put("framework", "autumn");
+        metadata.put("runtime", runtime());
+        metadata.put("java-version", System.getProperty("java.version", "unknown"));
+        putVmMetadata(metadata);
+        // 同一服务可能同时暴露 thrift 与 http：protocol 保留主协议供既有客户端筛选，
+        // protocols / http.port 供需要 http 端点的消费侧（spring-cloud rest 客户端等）使用
+        StringBuilder protocols = new StringBuilder("thrift");
+        Integer httpPort = providerConfig.getHttpPort();
+        if (Objects.nonNull(httpPort) && httpPort > 0) {
+            protocols.append(",http");
+            metadata.put("http-port", String.valueOf(httpPort));
         }
+        metadata.put("protocols", protocols.toString());
+        // 泳道标签始终写入（未配置归一化为基线 main），运维和消费侧都能按 traffic 统一筛选
+        metadata.put(TrafficRouter.META_KEY, TrafficRouter.normalize(applicationConfig.getTraffic()));
         return new ThriftRegistration(service, instanceId, host, port, Map.copyOf(metadata));
+    }
+
+    /**
+     * 运行时类型：GraalVM native image 与普通 JVM 分开标注，便于运维/灰度按运行时筛选实例。
+     *
+     * <p>判定方式与 spring-boot-native-samples 一致：native image 下
+     * {@code RuntimeMXBean.getVmName()} 为 "Substrate VM"；系统属性
+     * {@code org.graalvm.nativeimage.imagecode} 作为更可靠的兜底判定。</p>
+     */
+    private static String runtime() {
+        return isNativeImage() ? "graalvm-native" : "jvm";
+    }
+
+    private static boolean isNativeImage() {
+        if (Objects.nonNull(System.getProperty("org.graalvm.nativeimage.imagecode"))) {
+            return true;
+        }
+        String vmName = vmName();
+        return Objects.nonNull(vmName) && vmName.toLowerCase(Locale.ROOT).contains("substrate");
+    }
+
+    private static RuntimeMXBean runtimeBean() {
+        try {
+            return ManagementFactory.getRuntimeMXBean();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String vmName() {
+        RuntimeMXBean runtime = runtimeBean();
+        return Objects.isNull(runtime) ? null : runtime.getVmName();
+    }
+
+    /** vm 明细：name/vendor/version，native 下可直接看出是 Substrate VM */
+    private static void putVmMetadata(Map<String, String> metadata) {
+        RuntimeMXBean runtime = runtimeBean();
+        if (Objects.isNull(runtime)) {
+            return;
+        }
+        putIfPresent(metadata, "vm-name", runtime.getVmName());
+        putIfPresent(metadata, "vm-vendor", runtime.getVmVendor());
+        putIfPresent(metadata, "vm-version", runtime.getVmVersion());
+    }
+
+    private static void putIfPresent(Map<String, String> metadata, String key, String value) {
+        if (Objects.nonNull(value) && !value.isBlank()) {
+            metadata.put(key, value);
+        }
     }
 
     public InstanceRegistration toInstanceRegistration() {

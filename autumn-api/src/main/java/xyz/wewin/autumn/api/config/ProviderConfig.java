@@ -39,6 +39,10 @@ public class ProviderConfig {
      */
     private String controlToken;
     /**
+     * spring web 端口，仅用于注册元数据里声明 thrift/http 双协议；null 表示没有 web 端点
+     */
+    private Integer httpPort;
+    /**
      * whether config already initialized, avoid classpath config overwrite spring config
      */
     private volatile Boolean initialized = Boolean.FALSE;
@@ -127,6 +131,9 @@ public class ProviderConfig {
         String controlTokenValue = properties.getProperty("provider.control-token");
         this.controlToken = (Objects.isNull(controlTokenValue) || controlTokenValue.length() < 1)
                 ? null : controlTokenValue;
+
+        // httpPort 不读配置：由 AutumnLifecycle 在探测到真实启动的 web 容器后回填，
+        // 避免只凭 server.port 配置就给实例声明一个不存在的 http 端点
         this.initialized = Boolean.TRUE;
     }
 }
