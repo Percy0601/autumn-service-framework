@@ -221,16 +221,28 @@ public class ExtensionDiscovery implements Discovery {
     }
 
     /**
-     * 判断实例是否可作为 thrift 目标：显式声明 protocol 且不是 thrift 的实例跳过，
-     * 未声明 protocol 的实例按既有语义视为 thrift 可用。
+     * 判断实例是否可作为 thrift 目标：以 protocols（逗号分隔）为准，历史实例回退 protocol；
+     * 声明里不含 thrift 的实例跳过，未声明任何协议的实例按既有语义视为 thrift 可用。
      */
     private static boolean isThriftInstance(ServiceInstance instance) {
         Map<String, String> metadata = instance.getMetadata();
         if (Objects.isNull(metadata)) {
             return true;
         }
-        String protocol = metadata.get("protocol");
-        return Objects.isNull(protocol) || protocol.isBlank() || "thrift".equalsIgnoreCase(protocol.trim());
+        // 新版实例只声明 protocols（如 thrift,http）；历史实例可能只写 protocol，做兜底兼容
+        String declared = metadata.get("protocols");
+        if (Objects.isNull(declared) || declared.isBlank()) {
+            declared = metadata.get("protocol");
+        }
+        if (Objects.isNull(declared) || declared.isBlank()) {
+            return true;
+        }
+        for (String protocol : declared.split(",")) {
+            if ("thrift".equalsIgnoreCase(protocol.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 实例元数据快照，供任意标签选择器（label.*）匹配。 */

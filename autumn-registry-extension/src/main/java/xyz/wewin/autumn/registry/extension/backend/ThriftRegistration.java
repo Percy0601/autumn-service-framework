@@ -57,14 +57,9 @@ public final class ThriftRegistration implements Registration {
             // 自定义实例标签（application.labels.*），供消费侧 label.* 隐式参数筛选
             metadata.putAll(applicationConfig.getLabels());
         }
-        metadata.put("protocol", "thrift");
         metadata.put("application", service);
-        metadata.put("framework", "autumn");
-        metadata.put("runtime", runtime());
-        metadata.put("java-version", System.getProperty("java.version", "unknown"));
-        putVmMetadata(metadata);
-        // 同一服务可能同时暴露 thrift 与 http：protocol 保留主协议供既有客户端筛选，
-        // protocols / http.port 供需要 http 端点的消费侧（spring-cloud rest 客户端等）使用
+        // 只声明 protocols：thrift 恒在，web 容器真实启动后追加 http；
+        // 历史实例只写 protocol 的，由消费侧兜底识别，无需重复声明
         StringBuilder protocols = new StringBuilder("thrift");
         Integer httpPort = providerConfig.getHttpPort();
         if (Objects.nonNull(httpPort) && httpPort > 0) {
@@ -72,6 +67,8 @@ public final class ThriftRegistration implements Registration {
             metadata.put("http-port", String.valueOf(httpPort));
         }
         metadata.put("protocols", protocols.toString());
+        metadata.put("runtime", runtime());
+        metadata.put("vm-version", vmVersion());
         // 泳道标签始终写入（未配置归一化为基线 main），运维和消费侧都能按 traffic 统一筛选
         metadata.put(TrafficRouter.META_KEY, TrafficRouter.normalize(applicationConfig.getTraffic()));
         return new ThriftRegistration(service, instanceId, host, port, Map.copyOf(metadata));
@@ -109,21 +106,12 @@ public final class ThriftRegistration implements Registration {
         return Objects.isNull(runtime) ? null : runtime.getVmName();
     }
 
-    /** vm 明细：name/vendor/version，native 下可直接看出是 Substrate VM */
-    private static void putVmMetadata(Map<String, String> metadata) {
+    /** 运行时版本：native 下为 Substrate VM 版本（含 JDK 版本），取不到时回退 java.version */
+    private static String vmVersion() {
         RuntimeMXBean runtime = runtimeBean();
-        if (Objects.isNull(runtime)) {
-            return;
-        }
-        putIfPresent(metadata, "vm-name", runtime.getVmName());
-        putIfPresent(metadata, "vm-vendor", runtime.getVmVendor());
-        putIfPresent(metadata, "vm-version", runtime.getVmVersion());
-    }
-
-    private static void putIfPresent(Map<String, String> metadata, String key, String value) {
-        if (Objects.nonNull(value) && !value.isBlank()) {
-            metadata.put(key, value);
-        }
+        String vmVersion = Objects.isNull(runtime) ? null : runtime.getVmVersion();
+        return Objects.isNull(vmVersion) || vmVersion.isBlank()
+                ? System.getProperty("java.version", "unknown") : vmVersion;
     }
 
     public InstanceRegistration toInstanceRegistration() {
