@@ -542,7 +542,7 @@ public class ConcurrentBag implements AutoCloseable {
     }
 
     /**
-     * 回收超时空闲与超龄连接，由 AutumnPool 定时调用
+     * 回收超时、超龄与断线连接，由 AutumnPool 定时调用
      */
     public void evict() {
         if (closed) {
@@ -553,6 +553,12 @@ public class ConcurrentBag implements AutoCloseable {
         long maxLifetime = maxLifetime();
         for (ConcurrentBagEntry entry : mapping.values()) {
             if (entry.getState() == ConcurrentBagEntry.STATE_IN_USE) {
+                continue;
+            }
+            // 断线检测：transport 已关闭则直接移除
+            TTransport transport = entry.getEntry();
+            if (Objects.nonNull(transport) && !transport.isOpen()) {
+                remove(entry);
                 continue;
             }
             boolean idleExpired = idleTimeout > 0 && now - entry.getLastUsed() > idleTimeout;
