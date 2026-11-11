@@ -2,7 +2,7 @@
 #
 # 启动 Consul + autumn 示例服务（后台运行，PID 记到 run/pids，日志写到 run/logs）。
 #
-# 与 Windows 的 scripts/start.ps1 行为对齐：
+# 与 Windows 的 scripts/start.bat 行为对齐：
 #   - Consul 已经在 8500 上就绪（/v1/status/leader 可用），或端口已被占用 / 已有 consul agent 进程时
 #     **不再重复启动**，直接复用
 #   - 每个服务一个后台进程，PID 写在 run/pids/<service>.pid，stop.sh 一键停
@@ -18,7 +18,8 @@
 #   ./scripts/start.sh --service provider -- --server.port=18080 --autumn.provider.port=30882
 #                                               # -- 之后的参数原样传给应用
 #
-# 环境变量: CONSUL_HOME(默认 /opt/consul)、JAVA_HOME、APP_ARGS(空格分隔的附加参数)
+# 前提:     consul 已加入 PATH（脚本直接执行 consul 命令，不再探测安装目录）
+# 环境变量: JAVA_HOME、APP_ARGS(空格分隔的附加参数)
 #
 set -euo pipefail
 
@@ -31,7 +32,6 @@ STAGE_DIR="$RUN_DIR/staged"
 SERVICE="both"
 RUNTIME="jar"
 PROFILE="consul"
-CONSUL_HOME="${CONSUL_HOME:-/opt/consul}"
 JAVA_HOME_OPT="${JAVA_HOME:-}"
 SKIP_CONSUL=0
 APP_ARGS="${APP_ARGS:-}"
@@ -42,7 +42,7 @@ step() { printf '\n==> %s\n' "$*"; }
 die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
 usage() {
-    sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,/^set -euo pipefail/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' | sed '$d'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -52,7 +52,6 @@ while [[ $# -gt 0 ]]; do
         --profile)     [[ $# -ge 2 ]] || die '--profile 缺少取值（不要 profile 就传空字符串 ""）'
                        PROFILE="$2"; shift 2 ;;
         --java-home)   JAVA_HOME_OPT="${2:?--java-home 缺少取值}"; shift 2 ;;
-        --consul-home) CONSUL_HOME="${2:?--consul-home 缺少取值}"; shift 2 ;;
         --skip-consul) SKIP_CONSUL=1; shift ;;
         -h|--help)     usage; exit 0 ;;
         --)            shift; EXTRA_ARGS=("$@"); break ;;
@@ -98,20 +97,6 @@ wait_consul_ready() {
     return 1
 }
 
-resolve_consul_bin() {
-    local candidate
-    for candidate in "$CONSUL_HOME/consul" "$CONSUL_HOME/bin/consul"; do
-        if [[ -x "$candidate" ]]; then printf '%s\n' "$candidate"; return 0; fi
-    done
-    if command -v consul >/dev/null 2>&1; then
-        command -v consul; return 0
-    fi
-    for candidate in /opt/consul*/consul /opt/*/consul; do
-        if [[ -x "$candidate" ]]; then printf '%s\n' "$candidate"; return 0; fi
-    done
-    return 1
-}
-
 resolve_java() {
     if [[ -n "$JAVA_HOME_OPT" && -x "$JAVA_HOME_OPT/bin/java" ]]; then
         printf '%s\n' "$JAVA_HOME_OPT/bin/java"; return 0
@@ -152,12 +137,10 @@ start_consul() {
     if port_listening 8500 || pgrep -x consul >/dev/null 2>&1; then
         info '检测到 8500 已被占用或已有 consul agent 进程，跳过启动，等待其就绪...'
     else
-        local bin
-        if ! bin="$(resolve_consul_bin)"; then
-            die "找不到 consul 可执行文件：$CONSUL_HOME 下没有，/opt/consul* 和 PATH 里也没有（用 --consul-home 指定）"
-        fi
-        info "启动 $bin agent -dev -bind=127.0.0.1 -client=127.0.0.1"
-        nohup "$bin" agent -dev -bind=127.0.0.1 -client=127.0.0.1 -log-level=info \
+        command -v consul >/dev/null 2>&1 \
+            || die 'PATH 里找不到 consul，请把 consul 所在目录加入 PATH 后重试'
+        info "启动 $(command -v consul) agent -dev -bind=127.0.0.1 -client=127.0.0.1"
+        nohup consul agent -dev -bind=127.0.0.1 -client=127.0.0.1 -log-level=info \
             >"$LOG_DIR/consul.log" 2>&1 &
         echo $! >"$PID_DIR/consul.pid"
         info "PID $! 已记录到 run/pids/consul.pid，日志 run/logs/consul.log"

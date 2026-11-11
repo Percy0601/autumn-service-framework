@@ -12,11 +12,12 @@ rem
 rem  用法：scripts\start.bat
 rem        set PROFILE=default ^&^& scripts\start.bat    指定 profile（默认 consul）
 rem        set RUNTIME=native  ^&^& scripts\start.bat    跑 native 镜像（默认跑 jar）
+rem
+rem  前提：consul.exe 已加入 PATH（脚本直接执行 consul.exe，不再探测安装目录）
 rem ============================================================
 
 if not defined PROFILE set "PROFILE=consul"
 if not defined RUNTIME set "RUNTIME=jar"
-if not defined CONSUL_HOME set "CONSUL_HOME=D:\opt\consul"
 
 rem ---------- 1. Consul ----------
 curl -s -o nul --max-time 2 http://127.0.0.1:8500/v1/status/leader
@@ -31,16 +32,13 @@ if not errorlevel 1 (
     goto :apps
 )
 
-set "CONSUL="
-if exist "%CONSUL_HOME%\consul.exe" set "CONSUL=%CONSUL_HOME%\consul.exe"
-if not defined CONSUL for /d %%d in ("D:\opt\consul*") do if exist "%%d\consul.exe" set "CONSUL=%%d\consul.exe"
-if not defined CONSUL for /f "delims=" %%p in ('where consul.exe 2^>nul') do set "CONSUL=%%p"
-if not defined CONSUL (
-    echo [ERROR] 找不到 consul.exe：%CONSUL_HOME% 下没有，D:\opt\consul* 里也没有
+where consul.exe >nul 2>nul
+if errorlevel 1 (
+    echo [ERROR] PATH 里找不到 consul.exe，请把 consul 所在目录加入 PATH 后重试
     exit /b 1
 )
-echo [1/3] 启动 Consul: !CONSUL!
-start "Consul" "!CONSUL!" agent -dev -bind=127.0.0.1 -client=127.0.0.1 -log-level=info
+echo [1/3] 启动 Consul: consul.exe（来自 PATH）
+start "Consul" consul.exe agent -dev -bind=127.0.0.1 -client=127.0.0.1 -log-level=info
 call :waitup 8500 40
 if errorlevel 1 (
     echo [ERROR] Consul 40 秒内没起来，看那个 Consul 窗口的报错
