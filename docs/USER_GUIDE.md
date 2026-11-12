@@ -1,6 +1,6 @@
 # Autumn Framework 使用说明文档
 
-> 版本：1.0.0-SNAPSHOT ｜ 适用 JDK 25+ ｜ 更新日期：2026-11-06
+> 稳定版：1.0.0-RELEASE（已发布至 Maven Central）｜ 适用 JDK 25+ ｜ 更新日期：2026-11-12
 
 本手册覆盖 Autumn Framework（秋实框架）的接入、运行机制与全部配置项，包含：
 
@@ -15,7 +15,7 @@
 - [9. 示例工程运行指南](#9-示例工程运行指南)
 - [10. 构建与发布](#10-构建与发布)
 - [11. 常见问题](#11-常见问题)
-- [12. 当前状态与 Roadmap](#12-当前状态与-roadmap)
+- [12. 当前状态](#12-当前状态)
 
 ---
 
@@ -74,9 +74,10 @@ Autumn Framework 是一个基于 **Apache Thrift** 的服务治理框架，定�
     <dependency>
         <groupId>xyz.we-win.autumn</groupId>
         <artifactId>autumn-spring-boot-starter</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-RELEASE</version>
     </dependency>
-    <!-- 业务 Thrift 接口 jar（含 thrift 生成的 Iface/Processor/Client） -->
+    <!-- 业务 Thrift 接口 jar（含 thrift 生成的 Iface/Processor/Client）。
+         autumn-sample-api 是仓库内示例模块，未发布到 Maven Central，需先 mvn install 或换成自己的接口 jar -->
     <dependency>
         <groupId>xyz.we-win.autumn</groupId>
         <artifactId>autumn-sample-api</artifactId>
@@ -146,12 +147,12 @@ public class SomeConsumer {
             <path>
                 <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-compiler</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>1.0.0-RELEASE</version>
             </path>
             <path>
                 <groupId>xyz.we-win.autumn</groupId>
                 <artifactId>autumn-api</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>1.0.0-RELEASE</version>
             </path>
             <path>
                 <groupId>org.freemarker</groupId>
@@ -669,6 +670,8 @@ curl 'http://localhost:8081/boot-sample-consumer/hello?name=autumn'
 
 ## 10. 构建与发布
 
+> 稳定版 `1.0.0-RELEASE` 已发布至 Maven Central（`xyz.we-win.autumn`）；仓库主分支为 `1.1.0-SNAPSHOT` 开发线。发布使用 `mvn -Prelease deploy`（GPG 签名、sources / javadoc 已在 pom 中配置，认证读 `settings.xml` 的 `central` server token）。
+
 ```bash
 # 全量构建（跳过测试）
 mvn -DskipTests clean install
@@ -684,8 +687,27 @@ mvn test
 ```
 
 - JDK 25+、Maven 3.8+
-- 可执行 jar 为 `target/*-exec.jar`（`exec` classifier），主 jar 为普通 jar；重复 `package` 不会二次 repackage，也不产生 `*.jar.original`
-- 模块间通过 reactor 构建，`annotationProcessorPaths` 中的 SNAPSHOT 坐标会优先从 reactor 解析
+- 可执行 jar 为 `target/*-exec.jar`（`exec` classifier），主 jar 为普通 jar；重复 `package` 不会二次 repackage，也不产生 `*.jar.original`，细节见 [Q8](#11-常见问题)
+- 开发线构建时模块间通过 reactor 解析，`annotationProcessorPaths` 中的 `1.1.0-SNAPSHOT` 坐标会优先从 reactor 解析
+
+**GraalVM Native Image**
+
+```bash
+# 先 install，再编译 sample（provider / consumer 均可）
+mvn -f autumn-samples/autumn-sample-boot-provider/pom.xml -Pnative native:compile
+mvn -f autumn-samples/autumn-sample-boot-consumer/pom.xml -Pnative native:compile
+
+# 同机 multicast 自注册，双 native 进程端到端验证（无需 Consul）
+autumn-samples/autumn-sample-boot-provider/target/autumn-sample-boot-provider-native.exe --autumn.registry-type=multicast --server.port=18080
+autumn-samples/autumn-sample-boot-consumer/target/autumn-sample-boot-consumer-native.exe --autumn.registry-type=multicast --server.port=18081
+curl http://127.0.0.1:18081/boot-sample-consumer/hello
+
+# 按泳道 / 标签调用（隐式参数随 RPC 透传，注册中心按实例 traffic / label 过滤）
+curl 'http://127.0.0.1:18081/boot-sample-consumer/hello?traffic=gray'
+curl 'http://127.0.0.1:18081/boot-sample-consumer/hello?label.region=cn'
+```
+
+native 编译需 GraalVM 25 作为 `JAVA_HOME`（`native-image` 由 `native-maven-plugin` 调用）。Windows 还需 Visual Studio 2022 C++ 工具链：在普通终端里先执行 `call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"` 再跑 Maven，否则 native-image 会报 `Failed to automatically set up Windows build environment`。反射元数据全部在构建期生成（注解处理器 + Spring AOT `RuntimeHints`），仓库内无手写反射清单，详见 [Q5](#11-常见问题)。
 
 ## 11. 常见问题
 
@@ -742,7 +764,7 @@ SPI 文件来自 `META-INF/services`，删除或变更后**必须 `mvn clean`** 
 
 **Q7：Windows 上组播报 `Cannot assign requested address`？**
 
-旧版自研组播实现存在该问题，现已由 `autumn-cloud-extension` 修复（Windows 绑定通配地址）。若仍出现，请确认 `autumn-cloud-extension-common` 版本 ≥ 1.0.0-SNAPSHOT（2026-11-04 之后构建）。
+旧版自研组播实现存在该问题，现已由 `autumn-cloud-extension` 修复（Windows 绑定通配地址）。若仍出现，请确认 `autumn-cloud-extension-common` 版本 ≥ 1.0.0-RELEASE。
 
 **Q8：Windows 上 `mvn clean install` 报 jar 被其它进程占用、`spring-boot:repackage` 失败？**
 
@@ -753,20 +775,8 @@ SPI 文件来自 `META-INF/services`，删除或变更后**必须 `mvn clean`** 
 
 副本在进程退出时自动删除；被强杀留下的副本会在下次启动时清理。请勿再直接 `java -jar target/*.jar`。
 
-## 12. 当前状态与 Roadmap
+## 12. 当前状态
 
-### 已完成
+`1.0.0-RELEASE` 已发布至 Maven Central。Spring Boot Starter 与原生 Java API、JSR-269 编译期代码生成、ConcurrentBag 连接池、控制面 API、四种注册后端（multicast / consul / nacos / direct）、泳道路由与 GraalVM Native Image 示例均已可用。
 
-- [x] Spring Boot Starter 接入（自动装配 / 注解处理 / 生命周期）
-- [x] 注册发现收敛至 `autumn-cloud-extension`（multicast / consul / nacos 三后端，旧自研实现已删除）
-- [x] JSR-269 编译期代码生成链路（`_XxxServiceRegister` / `_XxxProxy` + SPI）
-- [x] 连接池（ConcurrentBag）与控制面 API
-
-### 规划中
-
-- [ ] `AutumnFilter` 过滤器链接入（鉴权、限流、链路透传）
-- [ ] 控制面治理工具（devops CLI / 控制台：服务列表、上下线、路由）
-- [ ] `ConsumerConfig.checkFail` 熔断与优雅降级
-- [ ] 直连 / Consul 模式下 `@Reference` 的配置增强
-- [ ] GraalVM Native Image 示例工程与 CI 验证
-- [ ] module-info（JPMS）完善与 `provides` 声明
+后续方向：`AutumnFilter` 过滤器链与熔断降级、控制面治理工具（服务列表 / 上下线 / 路由）、native 构建 CI、JPMS 完善。
