@@ -67,6 +67,8 @@ class ExtensionRegistryDiscoveryTest {
         assertEquals("thrift://127.0.0.1:30880", registration.getUri());
         // 新版实例只声明 protocols（thrift / thrift,http），历史 protocol 由消费侧兼容
         assertEquals("thrift", registration.getMetadata().get("protocols"));
+        // thrift 端口单独写进 meta，便于消费侧/运维直接读取
+        assertEquals("30880", registration.getMetadata().get("thrift-port"));
         assertEquals("gray", registration.getTraffic());
 
         registry.shutdownHook();

@@ -58,6 +58,8 @@ public final class ThriftRegistration implements Registration {
             metadata.putAll(applicationConfig.getLabels());
         }
         metadata.put("application", service);
+        // 实例端口（注册的 ServicePort）就是 thrift 端口，单独写进 meta，消费侧/运维不必再猜
+        metadata.put("thrift-port", String.valueOf(port));
         // 只声明 protocols：thrift 恒在，web 容器真实启动后追加 http；
         // 历史实例只写 protocol 的，由消费侧兜底识别，无需重复声明
         StringBuilder protocols = new StringBuilder("thrift");
