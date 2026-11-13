@@ -55,8 +55,12 @@ port_listening() {
 
 port_owner() {
     local port="$1"
-    if command -v ss >/dev/null 2>&1; then
-        ss -lntp "sport = :$port" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -n 1 | cut -d= -f2
+    # macOS 没有 ss，用 lsof -t 直接拿监听进程的 PID
+    if command -v lsof >/dev/null 2>&1; then
+        # lsof 无匹配时返回 1，pipefail 会把整条管道判失败，必须用 || true 兜住
+        lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+    elif command -v ss >/dev/null 2>&1; then
+        ss -lntp "sport = :$port" 2>/dev/null | grep -oE 'pid=[0-9]+' | head -n 1 | cut -d= -f2 || true
     fi
 }
 
@@ -193,7 +197,7 @@ if [[ "$busy" -eq 0 ]]; then
 else
     for p in "${PORTS[@]}"; do
         if port_listening "$p"; then
-            printf '    端口 %s 仍被占用：%s\n' "$p" "$(ss -lntp "sport = :$p" 2>/dev/null | tail -n +2 | awk '{print $NF}' || true)"
+            printf '    端口 %s 仍被占用：PID %s\n' "$p" "$(port_owner "$p" || true)"
         fi
     done
     printf '    有端口没放开，可能需要更高权限再执行一次。\n' >&2

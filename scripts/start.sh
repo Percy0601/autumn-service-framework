@@ -1,27 +1,32 @@
 #!/usr/bin/env bash
 #
-# 启动 Consul + autumn 示例服务（后台运行，PID 记到 run/pids，日志写到 run/logs）。
-#
-# 与 Windows 的 scripts/start.bat 行为对齐：
-#   - Consul 已经在 8500 上就绪（/v1/status/leader 可用），或端口已被占用 / 已有 consul agent 进程时
-#     **不再重复启动**，直接复用
-#   - 每个服务一个后台进程，PID 写在 run/pids/<service>.pid，stop.sh 一键停
-#   - jar 先复制到 run/staged 再跑，target 里的产物不会被运行中的进程占用
-#   - 只想前台单跑一个服务，仍可用 scripts/run-boot.sh
+# java -jar 一键启动：Consul + provider + consumer（后台，PID 记到 run/pids，日志 run/logs）。
+# 与 Windows 的 scripts/start.bat 对齐。要跑 GraalVM native 镜像请用 scripts/start-native.sh。
 #
 # 用法:
 #   ./scripts/start.sh                          # consul + provider + consumer
 #   ./scripts/start.sh --service provider       # 只起 provider
 #   ./scripts/start.sh --skip-consul            # 复用已在跑的 consul
-#   ./scripts/start.sh --runtime native         # 跑 build-native.sh 产出的 native 镜像
 #   ./scripts/start.sh --profile ""             # 不传 spring profile
 #   ./scripts/start.sh --service provider -- --server.port=18080 --autumn.provider.port=30882
-#                                               # -- 之后的参数原样传给应用
+#   ./scripts/start.sh --runtime native         # 兼容旧用法，等价于 start-native.sh
 #
-# 前提:     consul 已加入 PATH（脚本直接执行 consul 命令，不再探测安装目录）
-# 环境变量: JAVA_HOME、APP_ARGS(空格分隔的附加参数)
+# 前提: consul 已加入 PATH；java 在 PATH 或设置 JAVA_HOME
+#
+# 几个必须保留的处理（改脚本前先看）：
+#  1) IDE / 容器常注入 SERVER__PORT 之类的环境变量，Spring Boot 宽松绑定会把它当成
+#     server.port，覆盖配置里的 8080/8081，导致两个服务抢同一端口。这里清掉环境变量，
+#     并显式传 --server.port / --autumn.provider.port（命令行参数优先级最高）。
+#  2) 后台进程用独立会话启动：macOS 上父 shell 退出发的 SIGHUP 会被 Consul 自己接管
+#     （Go 程序覆盖 nohup 的 SIG_IGN）并退出，单纯 nohup 不够。
+#  3) 必须等端口真正 LISTEN 才报成功；只 sleep + kill -0 会把 "APPLICATION FAILED TO
+#     START" 报成启动成功。
+#  4) macOS 自带 bash 3.2 会把紧跟 $VAR 的中文多字节字符算进变量名，所有中文旁边的
+#     变量一律写成 ${VAR}。
 #
 set -euo pipefail
+
+unset SERVER__PORT SERVER_PORT PORT 2>/dev/null || true
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_DIR="$ROOT/run"
@@ -69,10 +74,10 @@ esac
 
 port_listening() {
     local port="$1"
-    if command -v ss >/dev/null 2>&1; then
-        ss -lntH "sport = :$port" 2>/dev/null | grep -q .
-    elif command -v lsof >/dev/null 2>&1; then
+    if command -v lsof >/dev/null 2>&1; then
         lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
+    elif command -v ss >/dev/null 2>&1; then
+        ss -lntH "sport = :$port" 2>/dev/null | grep -q .
     else
         (exec 3<>"/dev/tcp/127.0.0.1/$port") >/dev/null 2>&1
     fi
@@ -94,6 +99,46 @@ wait_consul_ready() {
         consul_ready && return 0
         sleep 0.5
     done
+    return 1
+}
+
+# 在独立会话里启动，返回真实服务 PID（python 进程 exec 后 PID 不变）。
+launch_detached() {
+    local log="$1"; shift
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c '
+import os, sys
+log = sys.argv[1]
+cmd = sys.argv[2:]
+try:
+    os.setsid()
+except OSError:
+    pass
+fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+os.dup2(fd, 1)
+os.dup2(fd, 2)
+os.close(fd)
+os.execvp(cmd[0], cmd)
+' "$log" "$@" >/dev/null 2>&1 &
+    else
+        nohup "$@" >"$log" 2>&1 &
+    fi
+    printf '%s\n' "$!"
+}
+
+wait_app_ready() {
+    local port="$1" pid="$2" log="$3" i
+    for i in $(seq 1 80); do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            printf '!! 进程 %s 提前退出，日志尾部：\n' "$pid" >&2
+            tail -n 40 "$log" >&2 || true
+            return 1
+        fi
+        if port_listening "$port"; then return 0; fi
+        sleep 0.5
+    done
+    printf '!! 等待 40 秒后端口 %s 仍未监听，日志尾部：\n' "$port" >&2
+    tail -n 40 "$log" >&2 || true
     return 1
 }
 
@@ -139,15 +184,17 @@ start_consul() {
     else
         command -v consul >/dev/null 2>&1 \
             || die 'PATH 里找不到 consul，请把 consul 所在目录加入 PATH 后重试'
-        info "启动 $(command -v consul) agent -dev -bind=127.0.0.1 -client=127.0.0.1"
-        nohup consul agent -dev -bind=127.0.0.1 -client=127.0.0.1 -log-level=info \
-            >"$LOG_DIR/consul.log" 2>&1 &
-        echo $! >"$PID_DIR/consul.pid"
-        info "PID $! 已记录到 run/pids/consul.pid，日志 run/logs/consul.log"
+        local consul_bin pid
+        consul_bin="$(command -v consul)"
+        info "启动 ${consul_bin} agent -dev -bind=127.0.0.1 -client=127.0.0.1"
+        pid="$(launch_detached "$LOG_DIR/consul.log" "$consul_bin" agent -dev \
+            -bind=127.0.0.1 -client=127.0.0.1 -log-level=info)"
+        printf '%s\n' "$pid" >"$PID_DIR/consul.pid"
+        info "PID ${pid} 已记录到 run/pids/consul.pid，日志 run/logs/consul.log"
     fi
 
     if ! wait_consul_ready; then
-        [[ -f "$LOG_DIR/consul.log" ]] && tail -n 30 "$LOG_DIR/consul.log" || true
+        [[ -f "$LOG_DIR/consul.log" ]] && tail -n 30 "$LOG_DIR/consul.log" >&2 || true
         die 'Consul 40 秒内没有就绪，日志见上'
     fi
     info 'Consul 就绪：http://127.0.0.1:8500/ui'
@@ -185,72 +232,74 @@ build_app_args() {
     if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
         APP_LAUNCH_ARGS+=("${EXTRA_ARGS[@]}")
     fi
+
+    local a has_http=0 has_thrift=0
+    APP_HTTP_PORT="$SERVER_PORT"
+    APP_THRIFT_PORT="$THRIFT_PORT"
+    for a in "${APP_LAUNCH_ARGS[@]}"; do
+        case "$a" in
+            --server.port=*)           has_http=1;   APP_HTTP_PORT="${a#*=}" ;;
+            --autumn.provider.port=*)  has_thrift=1; APP_THRIFT_PORT="${a#*=}" ;;
+        esac
+    done
+    # 命令行参数优先级高于环境变量与配置文件，显式钉死端口
+    if [[ "$has_http" -eq 0 ]]; then
+        APP_LAUNCH_ARGS+=("--server.port=$SERVER_PORT")
+    fi
+    if [[ "$has_thrift" -eq 0 ]]; then
+        APP_LAUNCH_ARGS+=("--autumn.provider.port=$THRIFT_PORT")
+    fi
 }
 
 start_app() {
-    local name="$1" pid_file pid jar staged log java_bin exe pid_file_dir
+    local name="$1" pid_file pid jar staged log java_bin exe
     app_meta "$name"
     build_app_args
     pid_file="$PID_DIR/$name.pid"
 
-    # 已经有活着实例就不再起第二个
     pid="$(read_pid "$pid_file")"
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-        info "$name 已在运行（PID $pid），跳过；重启请先 ./scripts/stop.sh"
+        info "$name 已在运行（PID ${pid}），跳过；重启请先 ./scripts/stop.sh"
         return 0
     fi
     rm -f "$pid_file"
 
-    if [[ "$APP_ARGS" != *"--server.port"* && "${EXTRA_ARGS[*]:-}" != *"--server.port"* ]] && port_listening "$SERVER_PORT"; then
-        die "端口 $SERVER_PORT 已被占用（$name 可能已经在跑）。先 ./scripts/stop.sh"
+    if port_listening "$APP_HTTP_PORT"; then
+        die "端口 ${APP_HTTP_PORT} 已被占用（$name 可能已经在跑）。先 ./scripts/stop.sh"
     fi
-    if [[ "$APP_ARGS" != *"--autumn.provider.port"* && "${EXTRA_ARGS[*]:-}" != *"--autumn.provider.port"* ]] && port_listening "$THRIFT_PORT"; then
-        die "端口 $THRIFT_PORT 已被占用。先 ./scripts/stop.sh"
+    if port_listening "$APP_THRIFT_PORT"; then
+        die "端口 ${APP_THRIFT_PORT} 已被占用。先 ./scripts/stop.sh"
     fi
 
     log="$LOG_DIR/$name-$(date +%Y%m%d-%H%M%S).log"
 
     if [[ "$RUNTIME" == "native" ]]; then
         exe="$ROOT/$MODULE/target/$IMAGE"
-        [[ -x "$exe" ]] || die "找不到 native 镜像：$exe（先跑 ./scripts/build-native.sh）"
-        info "启动 native: $exe"
-        (
-            cd "$ROOT/$MODULE"
-            nohup "$exe" "${APP_LAUNCH_ARGS[@]+"${APP_LAUNCH_ARGS[@]}"}" >"$log" 2>&1 &
-            echo $! >"$pid_file"
-        )
+        [[ -x "$exe" ]] || die "找不到 native 镜像：${exe}（先跑 ./scripts/build-native.sh）"
+        info "启动 native: ${exe}"
+        pid="$(cd "$ROOT/$MODULE" && launch_detached "$log" "$exe" "${APP_LAUNCH_ARGS[@]}")"
     else
         jar="$(find "$ROOT/$MODULE/target" -maxdepth 1 -type f -name '*-exec.jar' -print -quit 2>/dev/null || true)"
         [[ -n "$jar" ]] || die "找不到 $MODULE/target/*-exec.jar（先构建：mvn -DskipTests clean install）"
 
-        # 只清理一天前的残留副本，当天的副本可能正被别的实例使用
         find "$STAGE_DIR" -maxdepth 1 -type f -name '*.jar' -mtime +1 -delete 2>/dev/null || true
         staged="$STAGE_DIR/$(basename "${jar%-exec.jar}")-$$.jar"
         cp "$jar" "$staged"
 
-        if ! java_bin="$(resolve_java)"; then
-            die '找不到 java：设置 JAVA_HOME 或用 --java-home 指定'
-        fi
-        info "启动 jar: $staged（源 $jar）"
-        (
-            cd "$ROOT/$MODULE"
-            nohup "$java_bin" -jar "$staged" "${APP_LAUNCH_ARGS[@]+"${APP_LAUNCH_ARGS[@]}"}" >"$log" 2>&1 &
-            echo $! >"$pid_file"
-        )
+        java_bin="$(resolve_java)" || die '找不到 java：设置 JAVA_HOME 或用 --java-home 指定'
+        info "启动 jar: ${staged}（源 ${jar}）"
+        pid="$(cd "$ROOT/$MODULE" && launch_detached "$log" "$java_bin" -jar "$staged" "${APP_LAUNCH_ARGS[@]}")"
     fi
 
-    pid="$(read_pid "$pid_file")"
     [[ -n "$pid" ]] || die "$name 没有拿到进程号，看 $log"
-    sleep 3
-    if ! kill -0 "$pid" 2>/dev/null; then
-        tail -n 30 "$log" 2>/dev/null || true
+    printf '%s\n' "$pid" >"$pid_file"
+
+    if ! wait_app_ready "$APP_HTTP_PORT" "$pid" "$log"; then
         rm -f "$pid_file"
-        die "$name 启动失败（退出码见日志），日志：$log"
+        die "$name 启动失败，日志：$log"
     fi
 
-    info "$name 已启动：PID $pid，http://127.0.0.1:$SERVER_PORT，日志 $log"
-    LAST_PID="$pid"
-    LAST_LOG="$log"
+    info "$name 已启动：PID ${pid}，http://127.0.0.1:${APP_HTTP_PORT}，日志 ${log}"
 }
 
 print_summary() {
@@ -263,7 +312,7 @@ print_summary() {
     for name in "$@"; do
         pid="$(read_pid "$PID_DIR/$name.pid")"
         app_meta "$name"
-        printf '    %-9s PID %-7s %s\n' "$name" "${pid:-?}" "http://127.0.0.1:$SERVER_PORT"
+        printf '    %-9s PID %-7s %s\n' "$name" "${pid:-?}" "http://127.0.0.1:${SERVER_PORT}"
     done
     printf '\n    一键停止：./scripts/stop.sh（默认停这两个应用；--with-consul 连 Consul 一起停）\n'
 }
@@ -272,8 +321,8 @@ print_summary() {
 
 step '准备'
 mkdir -p "$PID_DIR" "$LOG_DIR" "$STAGE_DIR"
-info "仓库：$ROOT"
-info "运行时：$RUNTIME，profile：${PROFILE:-<无>}"
+info "仓库：${ROOT}"
+info "运行时：${RUNTIME}，profile：${PROFILE:-<无>}"
 
 if [[ "$SERVICE" == "consul" ]]; then
     start_consul
