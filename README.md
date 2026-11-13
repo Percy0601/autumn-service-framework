@@ -8,8 +8,19 @@
 <dependency>
     <groupId>xyz.we-win.autumn</groupId>
     <artifactId>autumn-spring-boot-starter</artifactId>
-    <version>1.0.0-RELEASE</version>
+    <version>1.1.0-SNAPSHOT</version>
 </dependency>
+```
+
+```xml
+<!-- 1.1.0 起 starter 自带 JSR-269 处理器（autumn-compiler + freemarker + autumn-api），
+     不用配 annotationProcessorPaths；JDK 23+ 默认关闭注解处理，这一行负责打开它，
+     否则 @Export/@Reference 的代码生成不会发生。
+     仍用 1.0.0-RELEASE 的话，starter 不带处理器，要在 maven-compiler-plugin 的
+     annotationProcessorPaths 里自行声明（见使用说明 3.1 第 5 步）。 -->
+<properties>
+    <maven.compiler.proc>full</maven.compiler.proc>
+</properties>
 ```
 
 ```java

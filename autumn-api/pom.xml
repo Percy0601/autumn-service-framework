@@ -21,10 +21,11 @@
     </properties>
 
     <dependencies>
+        <!-- thrift 生成的 stub 带 @javax.annotation.Generated，用户按 README 只引 starter 时
+             这里必须能传递过去，否则业务工程编译期直接"程序包 javax.annotation 不存在"。 -->
         <dependency>
             <groupId>javax.annotation</groupId>
             <artifactId>javax.annotation-api</artifactId>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

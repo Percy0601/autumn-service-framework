@@ -129,9 +129,31 @@ public class SomeConsumer {
 }
 ```
 
-**第 5 步：开启编译期代码生成（可选，推荐）**
+**第 5 步：开启编译期代码生成**
 
-在 `pom.xml` 的 `maven-compiler-plugin` 中声明注解处理器：
+`autumn-spring-boot-starter`（1.1.0 起）已经把 JSR-269 处理器 `autumn-compiler` 连同它运行时需要的
+`autumn-api`、`freemarker` 作为普通传递依赖带了进来，业务工程**不需要**再自己拼
+`annotationProcessorPaths`。只需在 `pom.xml` 打开注解处理：
+
+```xml
+<properties>
+    <!-- JDK 23 起 javac 默认不扫描 classpath 上的注解处理器；autumn 的代码生成（以及 lombok）
+         都依赖它。JDK 22 及以下可省略这一行。 -->
+    <maven.compiler.proc>full</maven.compiler.proc>
+</properties>
+```
+
+编译期会生成（只在 `target/generated-sources`，不进 `src`）：
+
+- `_XxxServiceRegister`：`@Export` 的服务装配器，同时写入 `META-INF/services/xyz.wewin.autumn.api.extension.AutumnServiceAssembler`；
+- `_XxxProxy`：`@Reference` 注入用的静态代理（`AutumnBeanPostProcessor` 优先 `Class.forName` 使用它）；
+- `META-INF/native-image/xyz.we-win.autumn/autumn-*-hints/`：native-image 元数据。
+
+**（可选）改用显式 processorpath**
+
+仍用 `1.0.0-RELEASE`（该版本 starter 未携带处理器），或者不想让处理器进运行 classpath 时，改回
+`annotationProcessorPaths`。设置它之后 javac 只从 processorpath 找处理器，四个坐标必须同时声明
+（缺 `autumn-api` / `freemarker` 会报 `NoClassDefFoundError`），此时不用再加 `<maven.compiler.proc>`：
 
 ```xml
 <plugin>
@@ -157,14 +179,12 @@ public class SomeConsumer {
             <path>
                 <groupId>org.freemarker</groupId>
                 <artifactId>freemarker</artifactId>
-                <version>2.3.34</version>
+                <version>2.3.35</version>
             </path>
         </annotationProcessorPaths>
     </configuration>
 </plugin>
 ```
-
-> 注意：`autumn-compiler` 处理器在运行时需要加载 `autumn-api` 中的注解类以及 `freemarker` 模板引擎，因此 `annotationProcessorPaths` 中必须同时声明 `autumn-compiler`、`autumn-api`、`freemarker`，否则编译报 `NoClassDefFoundError`（如 `com/microapp/autumn/api/annotation/Reference`、`freemarker/template/Configuration`）。
 
 ### 3.2 原生 Java API 方式
 
@@ -689,6 +709,7 @@ mvn test
 - JDK 25+、Maven 3.8+
 - 可执行 jar 为 `target/*-exec.jar`（`exec` classifier），主 jar 为普通 jar；重复 `package` 不会二次 repackage，也不产生 `*.jar.original`，细节见 [Q8](#11-常见问题)
 - 开发线构建时模块间通过 reactor 解析，`annotationProcessorPaths` 中的 `1.1.0-SNAPSHOT` 坐标会优先从 reactor 解析
+- 两个 boot sample 走的是「只引 starter + `<maven.compiler.proc>full</maven.compiler.proc>`」的精简方式（见 [3.1 第 5 步](#31-spring-boot-starter-方式推荐)），不声明 `annotationProcessorPaths`
 
 **GraalVM Native Image**
 
@@ -730,7 +751,18 @@ autumn.provider.ip=192.168.0.102
 
 **Q2：编译报 `NoClassDefFoundError`（如 `com/microapp/autumn/api/annotation/Reference`、`freemarker/template/Configuration`）？**
 
-`maven-compiler-plugin` 的 `annotationProcessorPaths` 中必须同时声明 `autumn-compiler`、`autumn-api` 与 `freemarker`（处理器运行时需要加载注解类与模板引擎），见 [3.1 第 5 步](#31-spring-boot-starter-方式推荐)。
+说明处理器**没跑**或跑的时候 classpath 不完整：
+
+- 只引 starter 时，确认 `pom.xml` 有 `<maven.compiler.proc>full</maven.compiler.proc>`（JDK 23+ 默认关闭
+  classpath 注解处理），否则不会生成 `_XxxProxy` / `_XxxServiceRegister`，运行期报 `ClassNotFoundException`；
+- 用了 `annotationProcessorPaths` 时，`autumn-compiler`、`autumn-api`、`freemarker` 三个坐标必须同时声明
+  （处理器运行时需要加载注解类与模板引擎），见 [3.1 第 5 步](#31-spring-boot-starter-方式推荐)。
+
+**Q2-1：编译报「程序包 javax.annotation 不存在」？**
+
+thrift 生成的 stub 带 `@javax.annotation.Generated`。`autumn-api` 已把 `javax.annotation-api` 作为普通
+传递依赖带出，正常引 starter 不会缺；若自己手工管理了 `javax.annotation-api` 且 scope 写成 `provided`，
+把它去掉或改成默认 scope。
 
 **Q3：Consumer 调用返回"no available instance"？**
 

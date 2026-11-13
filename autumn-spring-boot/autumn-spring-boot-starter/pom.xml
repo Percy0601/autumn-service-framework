@@ -25,7 +25,19 @@
             <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-spring-boot-autoconfigure</artifactId>
         </dependency>
-
+        <!-- 业务工程只按 README 引这一个 starter 时，@Export / @Reference 的 JSR-269 处理器
+             也必须随之出现在编译 classpath 上（JDK 23+ 需要 -proc:full 才会扫描 classpath 上的处理器）。
+             处理器运行时加载的注解类由 autumn-api（经 autoconfigure → core 传递）提供，
+             这里再补上 autumn-compiler 本体与 FreeMarker 模板引擎，
+             业务工程就不用自己拼 annotationProcessorPaths 了。 -->
+        <dependency>
+            <groupId>xyz.we-win.autumn</groupId>
+            <artifactId>autumn-compiler</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.freemarker</groupId>
+            <artifactId>freemarker</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

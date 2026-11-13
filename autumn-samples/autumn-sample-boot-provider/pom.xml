@@ -13,53 +13,22 @@
     <name>autumn-sample-boot-provider</name>
     <url>http://maven.apache.org</url>
 
+    <!-- JDK 23+ 默认关闭注解处理：这里打开，javac 就会扫描 classpath 上
+         starter 传递来的 autumn-compiler（以及 lombok），无需 annotationProcessorPaths。 -->
     <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
+        <maven.compiler.proc>full</maven.compiler.proc>
     </properties>
 
+    <!-- 只用 README 里那一个 starter 依赖：spring-boot / thrift / slf4j / logback /
+         jakarta.annotation 都由 starter 传递进来，业务工程不需要再逐个声明。 -->
     <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot</artifactId>
-        </dependency>
         <dependency>
             <groupId>xyz.we-win.autumn</groupId>
             <artifactId>autumn-spring-boot-starter</artifactId>
         </dependency>
         <dependency>
-            <groupId>jakarta.annotation</groupId>
-            <artifactId>jakarta.annotation-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>javax.annotation</groupId>
-            <artifactId>javax.annotation-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-logging</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>jul-to-slf4j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-to-slf4j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-classic</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ch.qos.logback</groupId>
-            <artifactId>logback-core</artifactId>
         </dependency>
         <dependency>
             <groupId>xyz.we-win.autumn</groupId>
@@ -67,14 +36,13 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>xyz.we-win.autumn</groupId>
-            <artifactId>autumn-sample-boot-native-hints</artifactId>
-            <version>${project.version}</version>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
         </dependency>
         <dependency>
             <groupId>xyz.we-win.autumn</groupId>
-            <artifactId>autumn-compiler</artifactId>
-            <scope>provided</scope>
+            <artifactId>autumn-sample-boot-native-hints</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 
@@ -84,36 +52,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>${maven-compiler-plugin.version}</version>
-                <configuration>
-                    <release>${maven.compiler.release}</release>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </path>
-                        <path>
-                            <groupId>xyz.we-win.autumn</groupId>
-                            <artifactId>autumn-compiler</artifactId>
-                            <version>${project.version}</version>
-                        </path>
-                        <path>
-                            <groupId>xyz.we-win.autumn</groupId>
-                            <artifactId>autumn-api</artifactId>
-                            <version>${project.version}</version>
-                        </path>
-                        <path>
-                            <groupId>org.freemarker</groupId>
-                            <artifactId>freemarker</artifactId>
-                            <version>${freemarker.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
             </plugin>
         </plugins>
     </build>
