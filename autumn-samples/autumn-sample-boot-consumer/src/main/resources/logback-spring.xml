@@ -3,7 +3,7 @@
     <property name="LOG_HOME" value="./logs/" />
     <springProperty scope="context" name="appName" source="spring.application.name" />
     <appender name="ConsoleAppender" class="ch.qos.logback.core.ConsoleAppender">
-        <withJansi>true</withJansi>
+        <!-- 不再声明 withJansi：classpath 上没有 org.fusesource.jansi，声明了每次启动都会往 stderr 打一条 WARN -->
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>%d{dd-MM-yyyy HH:mm:ss.SSS} %magenta([${appName}] [%thread] [%X{traceId}]) %highlight(%-5level) %logger{36}.%M - %msg%n</pattern>
         </encoder>
@@ -11,7 +11,7 @@
 
     <appender name="FileAppender" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_HOME}/boot-sample-provider-log.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <fileNamePattern>${LOG_HOME}/boot-sample-consumer-log.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
             <maxHistory>30</maxHistory>
             <maxFileSize>50MB</maxFileSize>
             <totalSizeCap>20GB</totalSizeCap>

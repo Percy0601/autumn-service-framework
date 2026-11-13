@@ -3,7 +3,7 @@
     <property name="LOG_HOME" value="./logs/" />
     <springProperty scope="context" name="appName" source="spring.application.name" />
     <appender name="ConsoleAppender" class="ch.qos.logback.core.ConsoleAppender">
-        <withJansi>true</withJansi>
+        <!-- 不再声明 withJansi：classpath 上没有 org.fusesource.jansi，声明了每次启动都会往 stderr 打一条 WARN -->
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <pattern>%d{dd-MM-yyyy HH:mm:ss.SSS} %magenta([${appName}] [%thread] [%X{traceId}]) %highlight(%-5level) %logger{36}.%M - %msg%n</pattern>
         </encoder>
