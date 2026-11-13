@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 一键停止 autumn 示例服务（默认停 provider + consumer 两个后台进程）。
+# 一键停止 autumn 示例服务 + Consul（与 start.sh 的「一键起三个服务」对称）。
 #
 # 进程号来源，三重兜底（跟 Windows 的 scripts/stop.ps1 一致）：
 #   1) run/pids/<service>.pid 里记录的 PID
@@ -8,9 +8,11 @@
 #   3) Consul：run/pids/consul.pid → 8500 端口占用者（--all-consul 时按 'consul agent' 全杀）
 #
 # 用法:
-#   ./scripts/stop.sh                 # 只停 provider + consumer
-#   ./scripts/stop.sh --with-consul   # 连 Consul 一起停
+#   ./scripts/stop.sh                 # 停 provider + consumer + Consul（默认）
+#   ./scripts/stop.sh --keep-consul   # 保留 Consul，只停两个应用
+#   ./scripts/stop.sh --apps-only     # 同 --keep-consul
 #   ./scripts/stop.sh --consul-only   # 只停 Consul
+#   ./scripts/stop.sh --with-consul   # 兼容旧用法（现在已是默认）
 #   ./scripts/stop.sh --all-consul    # Consul 全杀（含非本脚本起的实例）
 #   ./scripts/stop.sh --dry-run       # 只列出将结束的进程
 #
@@ -22,7 +24,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PID_DIR="$ROOT/run/pids"
 
 DO_APPS=1
-DO_CONSUL=0
+DO_CONSUL=1
 ALL_CONSUL=0
 DRY_RUN=0
 
@@ -32,7 +34,7 @@ die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --apps-only)   DO_APPS=1; DO_CONSUL=0; shift ;;
+        --apps-only|--keep-consul) DO_APPS=1; DO_CONSUL=0; shift ;;
         --consul-only) DO_APPS=0; DO_CONSUL=1; shift ;;
         --with-consul|--all) DO_CONSUL=1; shift ;;
         --all-consul)  DO_CONSUL=1; ALL_CONSUL=1; shift ;;

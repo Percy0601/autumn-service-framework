@@ -10,8 +10,9 @@
 #   ./scripts/start.sh --profile ""             # 不传 spring profile
 #   ./scripts/start.sh --service provider -- --server.port=18080 --autumn.provider.port=30882
 #   ./scripts/start.sh --runtime native         # 兼容旧用法，等价于 start-native.sh
+#   ./scripts/start.sh --no-consul             # 不启动也不检查 Consul（multicast 模式用）
 #
-# 前提: consul 已加入 PATH；java 在 PATH 或设置 JAVA_HOME
+# 前提: consul 已加入 PATH（--no-consul 时不需要）；java 在 PATH 或设置 JAVA_HOME
 #
 # 几个必须保留的处理（改脚本前先看）：
 #  1) IDE / 容器常注入 SERVER__PORT 之类的环境变量，Spring Boot 宽松绑定会把它当成
@@ -39,6 +40,7 @@ RUNTIME="jar"
 PROFILE="consul"
 JAVA_HOME_OPT="${JAVA_HOME:-}"
 SKIP_CONSUL=0
+NO_CONSUL=0
 APP_ARGS="${APP_ARGS:-}"
 EXTRA_ARGS=()
 
@@ -58,6 +60,7 @@ while [[ $# -gt 0 ]]; do
                        PROFILE="$2"; shift 2 ;;
         --java-home)   JAVA_HOME_OPT="${2:?--java-home 缺少取值}"; shift 2 ;;
         --skip-consul) SKIP_CONSUL=1; shift ;;
+        --no-consul)   NO_CONSUL=1; shift ;;
         -h|--help)     usage; exit 0 ;;
         --)            shift; EXTRA_ARGS=("$@"); break ;;
         *)             die "未知参数: $1（用 --help 查看用法）" ;;
@@ -314,7 +317,7 @@ print_summary() {
         app_meta "$name"
         printf '    %-9s PID %-7s %s\n' "$name" "${pid:-?}" "http://127.0.0.1:${SERVER_PORT}"
     done
-    printf '\n    一键停止：./scripts/stop.sh（默认停这两个应用；--with-consul 连 Consul 一起停）\n'
+    printf '\n    一键停止：./scripts/stop.sh（默认连 Consul 一起停；--keep-consul 保留 Consul）\n'
 }
 
 # ---------- 主流程 ----------
@@ -335,7 +338,11 @@ else
     SERVICES=("$SERVICE")
 fi
 
-start_consul
+if [[ "$NO_CONSUL" == "1" ]]; then
+    info '注册中心：multicast / 无外部注册中心，跳过 Consul'
+else
+    start_consul
+fi
 
 for name in "${SERVICES[@]}"; do
     step "$name"
