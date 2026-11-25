@@ -1,5 +1,12 @@
 @echo off
-chcp 65001 >nul
+rem ============================================================
+rem  ±¾ÎÄ¼ş±ØĞë±£´æÎª ANSI£¨GBK / cp936£©±àÂë£¬²»Òª¸Ä»Ø UTF-8¡£
+rem  Ô­Òò£ºcmd ¶ÁÈ¡ UTF-8 Åú´¦ÀíÊ±£¬ÈôÔÚÍ¬Ò»ÎÄ¼şÀïÓÃ chcp ÇĞ»»´úÂëÒ³£¬
+rem  ½âÎöÎ»ÖÃ»á´íÎ»£¬ÖĞÎÄĞĞ»á±»²ğ³É°ë½Øµ±ÃüÁîÖ´ĞĞ£¨±¨¡°²»ÊÇÄÚ²¿»òÍâ²¿ÃüÁî¡±¡¢
+rem  »¹»áÉÁ³ö¶àÓàµÄ cmd ´°¿Ú£©£¬½Å±¾´óÁ÷³ÌÖ±½ÓÅÜ·É¡£GBK ÊÇÖĞÎÄ Windows µÄ
+rem  cmd Ô­Éú±àÂë£¬ÅäºÏ¿ØÖÆÌ¨Ä¬ÈÏ cp936 ½âÎöºÍÏÔÊ¾¶¼ÕıÈ·¡£
+rem ============================================================
+
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 set "ROOT=%CD%"
@@ -9,41 +16,41 @@ if not exist "%RUN%\pids" md "%RUN%\pids" >nul
 if not exist "%LAUNCH_DIR%" md "%LAUNCH_DIR%" >nul
 
 rem ============================================================
-rem  GraalVM native image å¯åŠ¨ï¼ˆWindowsï¼‰
-rem  ç›´æ¥è·‘ build.bat äº§å‡ºçš„ *-native.exeï¼Œä¸ç»è¿‡ java -jarï¼š
+rem  GraalVM native image Æô¶¯£¨Windows£©
+rem  Ö±½ÓÅÜ build.bat ²ú³öµÄ *-native.exe£¬²»¾­¹ı java -jar£º
 rem    autumn-samples\autumn-sample-boot-provider\target\autumn-sample-boot-provider-native.exe
 rem    autumn-samples\autumn-sample-boot-consumer\target\autumn-sample-boot-consumer-native.exe
 rem
-rem  æœ¬è„šæœ¬åªè´Ÿè´£ã€Œè·‘ã€ï¼Œä¸è´Ÿè´£ã€Œå»ºã€ï¼›é•œåƒä¸å­˜åœ¨æ—¶ä¼šæç¤ºå…ˆæ‰§è¡Œ scripts\build.batã€‚
+rem  ±¾½Å±¾Ö»¸ºÔğ¡¸ÅÜ¡¹£¬²»¸ºÔğ¡¸½¨¡¹£»¾µÏñ²»´æÔÚÊ±»áÌáÊ¾ÏÈÖ´ĞĞ scripts\build.bat¡£
 rem
-rem  ç”¨æ³•ï¼šscripts\start-native.bat                       provider + consumerï¼ˆ8500 ä¸Šæ²¡æœ‰ Consul å°±èµ·ä¸€ä¸ªï¼‰
-rem        scripts\start-native.bat provider              åªèµ· provider
-rem        scripts\start-native.bat consumer              åªèµ· consumer
-rem        scripts\start-native.bat /skip-consul          å®Œå…¨å¤ç”¨å·²åœ¨è·‘çš„ Consulï¼Œè‡ªå·±ä¸èµ·
-rem        set PROFILE=default ^&^& scripts\start-native.bat        æ¢ profileï¼ˆé»˜è®¤ consulï¼Œè®¾æˆç©ºå€¼åˆ™ä¸ä¼ ï¼‰
-rem        set TIMEOUT=120 ^&^& scripts\start-native.bat            å°±ç»ªç­‰å¾…ç§’æ•°ï¼ˆé»˜è®¤ 60ï¼‰
-rem        set APP_ARGS=--server.port=18080 ^&^& scripts\start-native.bat   é¢å¤–çš„åº”ç”¨å‚æ•°
+rem  ÓÃ·¨£ºscripts\start-native.bat                       provider + consumer£¨8500 ÉÏÃ»ÓĞ Consul ¾ÍÆğÒ»¸ö£©
+rem        scripts\start-native.bat provider              Ö»Æğ provider
+rem        scripts\start-native.bat consumer              Ö»Æğ consumer
+rem        scripts\start-native.bat /skip-consul          ÍêÈ«¸´ÓÃÒÑÔÚÅÜµÄ Consul£¬×Ô¼º²»Æğ
+rem        set PROFILE=default ^&^& scripts\start-native.bat        »» profile£¨Ä¬ÈÏ consul£¬Éè³É¿ÕÖµÔò²»´«£©
+rem        set TIMEOUT=120 ^&^& scripts\start-native.bat            ¾ÍĞ÷µÈ´ıÃëÊı£¨Ä¬ÈÏ 60£©
+rem        set APP_ARGS=--server.port=18080 ^&^& scripts\start-native.bat   ¶îÍâµÄÓ¦ÓÃ²ÎÊı
 rem
-rem  åœæ­¢ï¼šscripts\stop.bat
-rem        native è¿›ç¨‹ååŒæ ·ä»¥ autumn-sample-boot å¼€å¤´ï¼Œpid æ–‡ä»¶ä¸ç«¯å£ä¸¤æ¡è·¯ stop.bat éƒ½è®¤ã€‚
+rem  Í£Ö¹£ºscripts\stop.bat
+rem        native ½ø³ÌÃûÍ¬ÑùÒÔ autumn-sample-boot ¿ªÍ·£¬pid ÎÄ¼şÓë¶Ë¿ÚÁ½ÌõÂ· stop.bat ¶¼ÈÏ¡£
 rem
-rem  å‰æï¼šconsul.exe å·²åœ¨ PATH é‡Œï¼ˆ8500 å·²æœ‰ Consul åˆ™ç›´æ¥å¤ç”¨ï¼Œä¸å†é‡å¤å¯åŠ¨ï¼‰
+rem  Ç°Ìá£ºconsul.exe ÒÑÔÚ PATH Àï£¨8500 ÒÑÓĞ Consul ÔòÖ±½Ó¸´ÓÃ£¬²»ÔÙÖØ¸´Æô¶¯£©
 rem
-rem  æ—¥å¿—ï¼š
-rem    æ§åˆ¶å°            æ¯ä¸ªæœåŠ¡ä¸€ä¸ªç‹¬ç«‹çš„ cmd çª—å£ï¼Œæ—¥å¿—å®æ—¶æ‰“åœ¨ä¸Šé¢ï¼ˆå’Œ java -jar ä¸€æ ·ï¼‰
-rem    logs\*.log        logback çš„æ–‡ä»¶æ—¥å¿—ï¼Œè½åœ¨ä»“åº“æ ¹ç›®å½• logs\ ä¸‹ï¼ˆ.gitignore å·²å¿½ç•¥ /logsï¼‰
+rem  ÈÕÖ¾£º
+rem    ¿ØÖÆÌ¨            Ã¿¸ö·şÎñÒ»¸ö¶ÀÁ¢µÄ cmd ´°¿Ú£¬ÈÕÖ¾ÊµÊ±´òÔÚÉÏÃæ£¨ºÍ java -jar Ò»Ñù£©
+rem    logs\*.log        logback µÄÎÄ¼şÈÕÖ¾£¬ÂäÔÚ²Ö¿â¸ùÄ¿Â¼ logs\ ÏÂ£¨.gitignore ÒÑºöÂÔ /logs£©
 rem                      provider: logs\boot-sample-provider-log.<date>.<i>.log
 rem                      consumer: logs\boot-sample-consumer-log.<date>.<i>.log
 rem
-rem  è¸©è¿‡çš„ä¸‰ä¸ªå‘ï¼Œæ”¹è„šæœ¬å‰å…ˆçœ‹ä¸€ä¸‹ï¼š
-rem   1) æ¯ä¸ªæœåŠ¡å…ˆå†™ä¸€ä¸ª run\launchers\<name>-native.bat åŒ…è£…è„šæœ¬ï¼Œå† start å‡ºå»ã€‚
-rem      å·¥ä½œç›®å½•å’Œå‚æ•°éƒ½è½åœ¨åŒ…è£…è„šæœ¬é‡Œï¼Œé¿å…åœ¨ bat é‡ŒåµŒå¥—å¼•å·â€”â€”
-rem      cmd ä¼šåƒæ‰ã€Œstart ... cmd /c ""exe" args > "log" 2>&1"ã€è¿™ç±»å†™æ³•é‡Œçš„é‡å®šå‘ã€‚
-rem      å¦å¤–åˆ«åœ¨è¿™é‡Œå†é‡å®šå‘ stdoutï¼šé‡å®šå‘åçª—å£å°±æ˜¯ç©ºçš„ï¼Œæ§åˆ¶å°é‡Œå•¥éƒ½çœ‹ä¸åˆ°ã€‚
-rem   2) åŒ…è£…è„šæœ¬è¦ç”¨ cmd /c æ˜¾å¼è·‘ã€‚ç›´æ¥ start ä¸€ä¸ª .bat ä¼šèµ°æ–‡ä»¶å…³è”çš„ cmd /Kï¼Œ
-rem      åº”ç”¨é€€å‡ºåè¿˜ç•™ä¸€ä¸ªç©º shell çª—å£ã€‚
-rem   3) ä¸»æµç¨‹é‡Œä¸è¦ç”¨ã€Œif ... ( ... exit /b 1 )ã€ï¼šå—å†…çš„ exit /b ä¼šæå‰ç»“æŸè„šæœ¬ï¼Œ
-rem      ä½†é€€å‡ºç ä¼šä¸¢æˆ 0ã€‚å¤±è´¥è·¯å¾„ç»Ÿä¸€èµ° :err_* æ ‡ç­¾ã€‚
+rem  ²È¹ıµÄÈı¸ö¿Ó£¬¸Ä½Å±¾Ç°ÏÈ¿´Ò»ÏÂ£º
+rem   1) Ã¿¸ö·şÎñÏÈĞ´Ò»¸ö run\launchers\<name>-native.bat °ü×°½Å±¾£¬ÔÙ start ³öÈ¥¡£
+rem      ¹¤×÷Ä¿Â¼ºÍ²ÎÊı¶¼ÂäÔÚ°ü×°½Å±¾Àï£¬±ÜÃâÔÚ bat ÀïÇ¶Ì×ÒıºÅ¡ª¡ª
+rem      cmd »á³Ôµô¡¸start ... cmd /c ""exe" args > "log" 2>&1"¡¹ÕâÀàĞ´·¨ÀïµÄÖØ¶¨Ïò¡£
+rem      ÁíÍâ±ğÔÚÕâÀïÔÙÖØ¶¨Ïò stdout£ºÖØ¶¨Ïòºó´°¿Ú¾ÍÊÇ¿ÕµÄ£¬¿ØÖÆÌ¨ÀïÉ¶¶¼¿´²»µ½¡£
+rem   2) °ü×°½Å±¾ÒªÓÃ cmd /c ÏÔÊ½ÅÜ¡£Ö±½Ó start Ò»¸ö .bat »á×ßÎÄ¼ş¹ØÁªµÄ cmd /K£¬
+rem      Ó¦ÓÃÍË³öºó»¹ÁôÒ»¸ö¿Õ shell ´°¿Ú¡£
+rem   3) Ö÷Á÷³ÌÀï²»ÒªÓÃ¡¸if ... ( ... exit /b 1 )¡¹£º¿éÄÚµÄ exit /b »áÌáÇ°½áÊø½Å±¾£¬
+rem      µ«ÍË³öÂë»á¶ª³É 0¡£Ê§°ÜÂ·¾¶Í³Ò»×ß :err_* ±êÇ©¡£
 rem ============================================================
 
 if not defined PROFILE set "PROFILE=consul"
@@ -74,9 +81,9 @@ if /i "%~1"=="--skip-consul" goto parse_skip
 if /i "%~1"=="/?" goto usage
 if /i "%~1"=="/help" goto usage
 if /i "%~1"=="-h" goto usage
-echo [ERROR] æœªçŸ¥å‚æ•°ï¼š%~1
+echo [ERROR] Î´Öª²ÎÊı£º%~1
 :usage
-echo ç”¨æ³•ï¼šscripts\start-native.bat [provider^|consumer^|all] [/skip-consul]
+echo ÓÃ·¨£ºscripts\start-native.bat [provider^|consumer^|all] [/skip-consul]
 echo       set PROFILE=...  set TIMEOUT=...  set APP_ARGS=...
 exit /b 1
 
@@ -91,10 +98,10 @@ set "HAS_CONSUL=0"
 if not errorlevel 1 set "HAS_CONSUL=1"
 
 echo ============================================================
-echo  GraalVM native å¯åŠ¨
+echo  GraalVM native Æô¶¯
 echo    profile : %PROFILE%
-echo    æœåŠ¡    : !SERVICES!
-echo    native  : å„æ¨¡å— target\*-native.exe
+echo    ·şÎñ    : !SERVICES!
+echo    native  : ¸÷Ä£¿é target\*-native.exe
 echo ============================================================
 
 rem ---------- 1. Consul ----------
@@ -104,30 +111,30 @@ curl -s -o nul --max-time 2 http://127.0.0.1:8500/v1/status/leader
 if not errorlevel 1 goto consul_reuse
 if "!HAS_CONSUL!"=="0" goto err_consulbin
 
-echo [1/2] å¯åŠ¨ Consul: consul.exeï¼ˆæ¥è‡ª PATHï¼‰
+echo [1/2] Æô¶¯ Consul: consul.exe£¨À´×Ô PATH£©
 start "Consul" consul.exe agent -dev -bind=127.0.0.1 -client=127.0.0.1 -log-level=info
 call :waitup 8500 40
 if errorlevel 1 goto err_consulboot
 call :consulpid
 if defined PID echo !PID!>"%RUN%\pids\consul.pid"
-echo       Consul å°±ç»ªï¼šhttp://127.0.0.1:8500/ui
+echo       Consul ¾ÍĞ÷£ºhttp://127.0.0.1:8500/ui
 goto apps
 
 :consul_skip
 curl -s -o nul --max-time 2 http://127.0.0.1:8500/v1/status/leader
 if errorlevel 1 goto err_consulmissing
-echo [1/2] Consul å·²åœ¨è¿è¡Œï¼ŒæŒ‰è¦æ±‚å¤ç”¨ï¼ˆ127.0.0.1:8500ï¼‰
+echo [1/2] Consul ÒÑÔÚÔËĞĞ£¬°´ÒªÇó¸´ÓÃ£¨127.0.0.1:8500£©
 goto apps
 
 :consul_reuse
 call :consulpid
 if not defined PID goto consul_reuse_nopid
-echo [1/2] Consul å·²åœ¨è¿è¡Œï¼ˆPID !PID!ï¼‰ï¼Œè·³è¿‡å¯åŠ¨
+echo [1/2] Consul ÒÑÔÚÔËĞĞ£¨PID !PID!£©£¬Ìø¹ıÆô¶¯
 echo !PID!>"%RUN%\pids\consul.pid"
 goto apps
 
 :consul_reuse_nopid
-echo [1/2] Consul å·²åœ¨è¿è¡Œï¼ˆ8500 æœ‰å“åº”ï¼‰ï¼Œè·³è¿‡å¯åŠ¨
+echo [1/2] Consul ÒÑÔÚÔËĞĞ£¨8500 ÓĞÏìÓ¦£©£¬Ìø¹ıÆô¶¯
 goto apps
 
 rem ---------- 2. provider / consumer ----------
@@ -152,50 +159,50 @@ goto summary
 
 :summary
 echo.
-echo å…¨éƒ¨å°±ç»ªã€‚åœæ­¢ï¼šscripts\stop.bat      è¿ Consul ä¸€èµ·åœï¼šscripts\stop.bat /all
-echo æ—¥å¿—ï¼šå„æœåŠ¡ç‹¬ç«‹çš„æ§åˆ¶å°çª—å£ï¼›æ–‡ä»¶æ—¥å¿—åœ¨ logs\ ä¸‹ï¼ˆlogback æ»šåŠ¨æ—¥å¿—ï¼‰
+echo È«²¿¾ÍĞ÷¡£Í£Ö¹£ºscripts\stop.bat      Á¬ Consul Ò»ÆğÍ££ºscripts\stop.bat /all
+echo ÈÕÖ¾£º¸÷·şÎñ¶ÀÁ¢µÄ¿ØÖÆÌ¨´°¿Ú£»ÎÄ¼şÈÕÖ¾ÔÚ logs\ ÏÂ£¨logback ¹ö¶¯ÈÕÖ¾£©
 endlocal
 exit /b 0
 
 rem ============================================================
-rem  å¤±è´¥è·¯å¾„ï¼ˆéƒ½æ”¾åœ¨ä¸»æµç¨‹ä¹‹åï¼Œé  exit /b 1 æŠŠé€€å‡ºç å¸¦å‡ºå»ï¼‰
+rem  Ê§°ÜÂ·¾¶£¨¶¼·ÅÔÚÖ÷Á÷³ÌÖ®ºó£¬¿¿ exit /b 1 °ÑÍË³öÂë´ø³öÈ¥£©
 rem ============================================================
 :err_consulbin
-echo [ERROR] PATH é‡Œæ‰¾ä¸åˆ° consul.exeï¼Œè¯·æŠŠ consul æ‰€åœ¨ç›®å½•åŠ å…¥ PATH åé‡è¯•
+echo [ERROR] PATH ÀïÕÒ²»µ½ consul.exe£¬Çë°Ñ consul ËùÔÚÄ¿Â¼¼ÓÈë PATH ºóÖØÊÔ
 exit /b 1
 
 :err_consulmissing
-echo [ERROR] æŒ‡å®šäº† /skip-consulï¼Œä½† 127.0.0.1:8500 ä¸Šæ²¡æœ‰å°±ç»ªçš„ Consul
+echo [ERROR] Ö¸¶¨ÁË /skip-consul£¬µ« 127.0.0.1:8500 ÉÏÃ»ÓĞ¾ÍĞ÷µÄ Consul
 exit /b 1
 
 :err_consulboot
-echo [ERROR] Consul 40 ç§’å†…æ²¡èµ·æ¥ï¼Œçœ‹é‚£ä¸ª Consul çª—å£çš„æŠ¥é”™
+echo [ERROR] Consul 40 ÃëÄÚÃ»ÆğÀ´£¬¿´ÄÇ¸ö Consul ´°¿ÚµÄ±¨´í
 exit /b 1
 
 :err_missing
-echo [ERROR] æ‰¾ä¸åˆ° native é•œåƒï¼š!_exe!
-echo         å…ˆæ„å»ºï¼šscripts\build.batï¼ˆäº§ç‰©å°±åœ¨å„æ¨¡å—çš„ target ä¸‹ï¼‰
+echo [ERROR] ÕÒ²»µ½ native ¾µÏñ£º!_exe!
+echo         ÏÈ¹¹½¨£ºscripts\build.bat£¨²úÎï¾ÍÔÚ¸÷Ä£¿éµÄ target ÏÂ£©
 exit /b 1
 
 :err_busy
-echo [ERROR] ç«¯å£ !_port! å·²è¢« PID !PORTPID! å ç”¨ï¼ˆ!_name! å¯èƒ½å·²ç»åœ¨è·‘ï¼‰ï¼Œå…ˆ scripts\stop.bat
+echo [ERROR] ¶Ë¿Ú !_port! ÒÑ±» PID !PORTPID! Õ¼ÓÃ£¨!_name! ¿ÉÄÜÒÑ¾­ÔÚÅÜ£©£¬ÏÈ scripts\stop.bat
 exit /b 1
 
 :err_dead
-echo [ERROR] !_name! è¿›ç¨‹å·²é€€å‡ºï¼ˆç«¯å£ !_port! æ²¡èµ·æ¥ï¼‰
+echo [ERROR] !_name! ½ø³ÌÒÑÍË³ö£¨¶Ë¿Ú !_port! Ã»ÆğÀ´£©
 call :taillog "%ROOT%\logs" "boot-sample-!_name!-log.*.log"
 exit /b 1
 
 :err_timeout
-echo [ERROR] !_name! %TIMEOUT% ç§’å†…æ²¡èµ·æ¥ï¼ˆç«¯å£ !_port!ï¼‰
+echo [ERROR] !_name! %TIMEOUT% ÃëÄÚÃ»ÆğÀ´£¨¶Ë¿Ú !_port!£©
 call :taillog "%ROOT%\logs" "boot-sample-!_name!-log.*.log"
 exit /b 1
 
 rem ============================================================
-rem  å­è¿‡ç¨‹
+rem  ×Ó¹ı³Ì
 rem ============================================================
 
-rem waitup <port> <ç§’>  ->  errorlevel 0 è¡¨ç¤º HTTP æˆ–ç«¯å£å·²ç»å“åº”
+rem waitup <port> <Ãë>  ->  errorlevel 0 ±íÊ¾ HTTP »ò¶Ë¿ÚÒÑ¾­ÏìÓ¦
 :waitup
 set /a WAIT=0
 :waitup_loop
@@ -208,9 +215,9 @@ if %WAIT% GEQ %~2 exit /b 1
 ping -n 2 127.0.0.1 >nul
 goto waitup_loop
 
-rem pidof <é•œåƒå>  ->  PIDS=è¯¥é•œåƒåæ‰€æœ‰å®ä¾‹çš„ PIDï¼Œé€—å·åˆ†éš”ï¼ˆæ²¡æœ‰åˆ™ä¸ºç©ºï¼‰
-rem ä¸èƒ½ç”¨ tasklist è¾“å‡ºé‡Œçš„ ".exe" åˆ¤æ–­ï¼štasklist ä¼šæŠŠè¶…è¿‡ 25 å­—ç¬¦çš„é•œåƒåæˆªæ–­æ˜¾ç¤ºï¼Œ
-rem autumn-sample-boot-provider-native å°±çœ‹ä¸åˆ° ".exe"ã€‚æ‰€ä»¥åªè®¤ç¬¬äºŒåˆ—çš„æ•°å­—ã€‚
+rem pidof <¾µÏñÃû>  ->  PIDS=¸Ã¾µÏñÃûËùÓĞÊµÀıµÄ PID£¬¶ººÅ·Ö¸ô£¨Ã»ÓĞÔòÎª¿Õ£©
+rem ²»ÄÜÓÃ tasklist Êä³öÀïµÄ ".exe" ÅĞ¶Ï£ºtasklist »á°Ñ³¬¹ı 25 ×Ö·ûµÄ¾µÏñÃû½Ø¶ÏÏÔÊ¾£¬
+rem autumn-sample-boot-provider-native ¾Í¿´²»µ½ ".exe"¡£ËùÒÔÖ»ÈÏµÚ¶şÁĞµÄÊı×Ö¡£
 :pidof
 set "PIDS="
 for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq %~1" /NH 2^>nul') do call :keepnum %%p
@@ -221,7 +228,7 @@ echo %~1| findstr /r "^[0-9][0-9]*$" >nul || exit /b 0
 set "PIDS=!PIDS!%~1,"
 exit /b 0
 
-rem consulpid  ->  PID=consul.exe çš„è¿›ç¨‹å·
+rem consulpid  ->  PID=consul.exe µÄ½ø³ÌºÅ
 :consulpid
 set "PID="
 for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq consul.exe" /NH 2^>nul') do call :firstnum %%p
@@ -233,17 +240,17 @@ echo %~1| findstr /r "^[0-9][0-9]*$" >nul || exit /b 0
 set "PID=%~1"
 exit /b 0
 
-rem snapshot <é•œåƒå>  ->  SNAP=å¯åŠ¨å‰å·²æœ‰çš„ PID åˆ—è¡¨ï¼Œå½¢å¦‚ ,1234,
+rem snapshot <¾µÏñÃû>  ->  SNAP=Æô¶¯Ç°ÒÑÓĞµÄ PID ÁĞ±í£¬ĞÎÈç ,1234,
 :snapshot
 call :pidof %~1
 set "SNAP=,"
 if defined PIDS set "SNAP=,!PIDS!"
 exit /b 0
 
-rem findnew <é•œåƒå>  ->  NEWPID=å¯åŠ¨å‰æ²¡æœ‰ã€ç°åœ¨å‡ºç°çš„é‚£ä¸ª PID
-rem åˆ«å†™æˆ for %%p in (!PIDS:,= !)ï¼šFOR çš„ IN å­å¥ä¼šæŒ‰é€—å·/ç©ºæ ¼æŠŠ !PIDS:,= ! æ‹†æˆ
-rem "!PIDS:"ã€"="ã€"!" å‡ æ®µï¼Œå»¶è¿Ÿå±•å¼€å†æŠŠ ! åæ‰ï¼Œæœ€åæ‹¿åˆ°çš„æ˜¯å­—é¢é‡ PIDS:
-rem PIDS æœ¬èº«ä»¥é€—å·ç»“å°¾ï¼Œé€—å·åœ¨ IN å­å¥é‡Œå°±æ˜¯åˆ†éš”ç¬¦ï¼Œç›´æ¥å±•å¼€å³å¯
+rem findnew <¾µÏñÃû>  ->  NEWPID=Æô¶¯Ç°Ã»ÓĞ¡¢ÏÖÔÚ³öÏÖµÄÄÇ¸ö PID
+rem ±ğĞ´³É for %%p in (!PIDS:,= !)£ºFOR µÄ IN ×Ó¾ä»á°´¶ººÅ/¿Õ¸ñ°Ñ !PIDS:,= ! ²ğ³É
+rem "!PIDS:"¡¢"="¡¢"!" ¼¸¶Î£¬ÑÓ³ÙÕ¹¿ªÔÙ°Ñ ! ÍÌµô£¬×îºóÄÃµ½µÄÊÇ×ÖÃæÁ¿ PIDS:
+rem PIDS ±¾ÉíÒÔ¶ººÅ½áÎ²£¬¶ººÅÔÚ IN ×Ó¾äÀï¾ÍÊÇ·Ö¸ô·û£¬Ö±½ÓÕ¹¿ª¼´¿É
 :findnew
 set "NEWPID="
 call :pidof %~1
@@ -253,29 +260,29 @@ for %%p in (!PIDS!) do (
 )
 exit /b 0
 
-rem portpid <port>  ->  PORTPID=ç›‘å¬è¯¥ç«¯å£çš„è¿›ç¨‹å·
+rem portpid <port>  ->  PORTPID=¼àÌı¸Ã¶Ë¿ÚµÄ½ø³ÌºÅ
 :portpid
 set "PORTPID="
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr /c:"LISTENING" ^| findstr /c:":%~1 "') do if not defined PORTPID set "PORTPID=%%a"
 exit /b 0
 
-rem taillog <ç›®å½•> <é€šé…ç¬¦>  ->  æ‰“å°è¯¥ç›®å½•ä¸‹æœ€æ–°çš„åŒ¹é…æ–‡ä»¶çš„æœ€å 30 è¡Œ
-rem logback æ–‡ä»¶åå¸¦æ—¥æœŸå’Œæ»šåŠ¨åºå·ï¼ˆboot-sample-provider-log.2026-11-13.0.logï¼‰ï¼Œ
-rem åå­—ä¸å›ºå®šï¼Œæ‰€ä»¥æŒ‰ä¿®æ”¹æ—¶é—´å–æœ€æ–°çš„é‚£ä¸ª
+rem taillog <Ä¿Â¼> <Í¨Åä·û>  ->  ´òÓ¡¸ÃÄ¿Â¼ÏÂ×îĞÂµÄÆ¥ÅäÎÄ¼şµÄ×îºó 30 ĞĞ
+rem logback ÎÄ¼şÃû´øÈÕÆÚºÍ¹ö¶¯ĞòºÅ£¨boot-sample-provider-log.2026-11-13.0.log£©£¬
+rem Ãû×Ö²»¹Ì¶¨£¬ËùÒÔ°´ĞŞ¸ÄÊ±¼äÈ¡×îĞÂµÄÄÇ¸ö
 :taillog
 set "_tailfile="
 for /f "delims=" %%f in ('dir /b /a-d /o-d "%~1\%~2" 2^>nul') do if not defined _tailfile set "_tailfile=%~1\%%f"
 if not defined _tailfile (
-    echo        ^(æ²¡æœ‰æ—¥å¿—æ–‡ä»¶ï¼š%~1\%~2^)
+    echo        ^(Ã»ÓĞÈÕÖ¾ÎÄ¼ş£º%~1\%~2^)
     exit /b 0
 )
-echo ---- !_tailfile! æœ€å 30 è¡Œ ----
+echo ---- !_tailfile! ×îºó 30 ĞĞ ----
 powershell -NoProfile -Command "Get-Content -LiteralPath '!_tailfile!' -Tail 30" 2>nul
-echo ---- æ—¥å¿—ç»“æŸ ----
+echo ---- ÈÕÖ¾½áÊø ----
 exit /b 0
 
-rem waitapp <port> <é•œåƒå> <ç§’>  ->  errorlevel 0 å°±ç»ª / 1 è¶…æ—¶ / 2 è¿›ç¨‹å·²é€€å‡º
-rem è¾¹ç­‰ç«¯å£è¾¹çœ‹è¿›ç¨‹ï¼šnative èµ·æ¥å¾—å¿«ï¼Œå´©äº†å°±åˆ«å¹²ç­‰åˆ°è¶…æ—¶
+rem waitapp <port> <¾µÏñÃû> <Ãë>  ->  errorlevel 0 ¾ÍĞ÷ / 1 ³¬Ê± / 2 ½ø³ÌÒÑÍË³ö
+rem ±ßµÈ¶Ë¿Ú±ß¿´½ø³Ì£ºnative ÆğÀ´µÃ¿ì£¬±ÀÁË¾Í±ğ¸ÉµÈµ½³¬Ê±
 :waitapp
 set /a WAIT=0
 :waitapp_loop
@@ -309,12 +316,12 @@ if defined PROFILE set "_args=--spring.profiles.active=%PROFILE%"
 if defined APP_ARGS set "_args=!_args! %APP_ARGS%"
 
 echo.
-echo [!_name!] native å¯åŠ¨ï¼š!_exe!
-if defined _args echo         å‚æ•°ï¼š!_args!
-echo         æ—¥å¿—ï¼šç‹¬ç«‹æ§åˆ¶å°çª—å£ + logs\boot-sample-!_name!-log.*.log
+echo [!_name!] native Æô¶¯£º!_exe!
+if defined _args echo         ²ÎÊı£º!_args!
+echo         ÈÕÖ¾£º¶ÀÁ¢¿ØÖÆÌ¨´°¿Ú + logs\boot-sample-!_name!-log.*.log
 
-rem åŒ…è£…è„šæœ¬åªåšä¸¤ä»¶äº‹ï¼šåˆ‡å·¥ä½œç›®å½•ã€æŠŠå‘½ä»¤è¡Œä¼ ä¸‹å»ã€‚
-rem ä¸é‡å®šå‘ stdoutâ€”â€”ä¸€æ—¦é‡å®šå‘ï¼Œçª—å£é‡Œå°±ä»€ä¹ˆéƒ½çœ‹ä¸åˆ°äº†
+rem °ü×°½Å±¾Ö»×öÁ½¼şÊÂ£ºÇĞ¹¤×÷Ä¿Â¼¡¢°ÑÃüÁîĞĞ´«ÏÂÈ¥¡£
+rem ²»ÖØ¶¨Ïò stdout¡ª¡ªÒ»µ©ÖØ¶¨Ïò£¬´°¿ÚÀï¾ÍÊ²Ã´¶¼¿´²»µ½ÁË
 (
 echo @echo off
 echo cd /d "!ROOT!"
@@ -322,7 +329,7 @@ echo "!_exe!" !_args!
 ) > "!_launcher!"
 
 call :snapshot !_img!
-rem ä¸åŠ  /minï¼šçª—å£è¦ç«‹èµ·æ¥ç»™ç”¨æˆ·çœ‹æ—¥å¿—
+rem ²»¼Ó /min£º´°¿ÚÒªÁ¢ÆğÀ´¸øÓÃ»§¿´ÈÕÖ¾
 start "!_name!" cmd /c "!_launcher!"
 
 call :waitapp %_port% !_img! %TIMEOUT%
@@ -332,8 +339,8 @@ if errorlevel 1 goto err_timeout
 call :findnew !_img!
 if defined NEWPID (
     echo !NEWPID!>"%RUN%\pids\%_name%.pid"
-    echo         !_name! å°±ç»ªï¼šPID !NEWPID!  http://127.0.0.1:%_port%
+    echo         !_name! ¾ÍĞ÷£ºPID !NEWPID!  http://127.0.0.1:%_port%
 ) else (
-    echo         !_name! å°±ç»ªï¼šhttp://127.0.0.1:%_port% ^(PID æ²¡æ‹¿åˆ°ï¼Œstop æ—¶æŒ‰ç«¯å£æ‰¾^)
+    echo         !_name! ¾ÍĞ÷£ºhttp://127.0.0.1:%_port% ^(PID Ã»ÄÃµ½£¬stop Ê±°´¶Ë¿ÚÕÒ^)
 )
 exit /b 0
