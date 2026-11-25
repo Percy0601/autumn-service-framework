@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.thrift.transport.TTransport;
 
-public class ConcurrentBagEntryImpl<T extends TTransport> implements ConcurrentBagEntry{
+public class ConcurrentBagEntryImpl<T extends TTransport> implements ConcurrentBagEntry<T>{
     private final AtomicInteger state =  new AtomicInteger(STATE_NOT_IN_USE);
     private final long createdAt = System.currentTimeMillis();
     private final AtomicLong lastUsed = new AtomicLong(createdAt);

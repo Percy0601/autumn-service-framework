@@ -24,7 +24,7 @@ public class ConsumerNativeHints implements RuntimeHintsRegistrar {
         hints.proxies().registerJdkProxy(UserClient.class);
         hints.reflection().registerType(UserDto.class,
                 MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
-                MemberCategory.DECLARED_FIELDS,
+                MemberCategory.ACCESS_DECLARED_FIELDS,
                 MemberCategory.INVOKE_DECLARED_METHODS);
 
         hints.reflection().registerType(TypeReference.of("org.apache.coyote.AbstractProtocol"),

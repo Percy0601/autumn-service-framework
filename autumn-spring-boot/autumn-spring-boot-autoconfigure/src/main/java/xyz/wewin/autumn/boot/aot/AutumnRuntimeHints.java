@@ -26,7 +26,7 @@ public class AutumnRuntimeHints implements RuntimeHintsRegistrar {
      */
     private static final MemberCategory[] JACKSON_BINDING =
             {MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.INVOKE_PUBLIC_METHODS,
-                    MemberCategory.DECLARED_FIELDS, MemberCategory.PUBLIC_FIELDS};
+                    MemberCategory.ACCESS_DECLARED_FIELDS, MemberCategory.ACCESS_PUBLIC_FIELDS};
 
     @Override
     public void registerHints(RuntimeHints hints, ClassLoader classLoader) {

@@ -176,7 +176,7 @@ class ConcurrentBagTest {
                 bag.requite(temp);
                 assertTrue(temp.getEntry().isOpen(), "requited connection should stay open in the pool");
 
-                bag.remove("127.0.0.1");
+                bag.remove("127.0.0.1", stub.port());
 
                 assertTrue(inUse.getEntry().isOpen(),
                         "a removed instance must not close a connection that is still borrowed");

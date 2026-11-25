@@ -136,7 +136,7 @@ class TrafficRoutingBagTest {
     }
 
     /** 不建立真实 TCP 连接的桩连接；validateOnBorrow=false 时不会触碰 getEntry()。 */
-    private static final class FakeEntry implements ConcurrentBagEntry {
+    private static final class FakeEntry implements ConcurrentBagEntry<TTransport> {
 
         private final AtomicInteger state = new AtomicInteger(STATE_NOT_IN_USE);
         private final String id = UUID.randomUUID().toString();
@@ -163,8 +163,7 @@ class TrafficRoutingBagTest {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public <T extends TTransport> T getEntry() {
+        public TTransport getEntry() {
             return null;
         }
 

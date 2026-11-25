@@ -14,8 +14,8 @@ import xyz.wewin.autumn.api.config.ProviderConfig;
 
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/5/8
+ * @author baoxin.zhao
+ * @date 2024/5/8
  */
 public class ThreadUtil {
     private static volatile ThreadUtil instance;
@@ -117,7 +117,7 @@ public class ThreadUtil {
         @Override
         public Thread newThread(Runnable r) {
             Thread newThread = new Thread(r);
-            newThread.setName(namePrefix + ":Thread-" + newThread.getId());
+            newThread.setName(namePrefix + ":Thread-" + newThread.threadId());
             newThread.setDaemon(true);
             return newThread;
         }

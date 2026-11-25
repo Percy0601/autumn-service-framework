@@ -3,6 +3,7 @@ package xyz.wewin.autumn.sample.test;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
@@ -26,8 +27,8 @@ import xyz.wewin.autumn.api.util.SpiUtil;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/9/30
+ * @author baoxin.zhao
+ * @date 2024/9/30
  */
 @Slf4j
 public class MulticastDiscoveryTest {
@@ -134,7 +135,7 @@ public class MulticastDiscoveryTest {
             try {
                 byte[] buff = new byte[1024];
                 InetAddress group = InetAddress.getByName("228.5.6.7");
-                socket.joinGroup(group);
+                socket.joinGroup(new InetSocketAddress(group, socket.getLocalPort()), null);
                 while (true) {
                     DatagramPacket packet = new DatagramPacket(buff, buff.length);
                     socket.receive(packet);
@@ -164,7 +165,7 @@ public class MulticastDiscoveryTest {
         public void run() {
             try {
                 InetAddress group = InetAddress.getByName("228.5.6.7");
-                socket.joinGroup(group);
+                socket.joinGroup(new InetSocketAddress(group, socket.getLocalPort()), null);
                 String line = "Hello: ".concat(UUID.randomUUID().toString());
                 while (true) {
                     byte[] buff = line.getBytes();
@@ -199,7 +200,7 @@ public class MulticastDiscoveryTest {
 
         try {
             ms = new MulticastSocket(port);
-            ms.joinGroup(group);//加入到组播组
+            ms.joinGroup(new InetSocketAddress(group, port), null);//加入到组播组
             while (true) {
                 String message = "Hello " + new java.util.Date();
                 byte[] buffer = message.getBytes();
@@ -213,7 +214,7 @@ public class MulticastDiscoveryTest {
         } finally {
             if (ms != null) {
                 try {
-                    ms.leaveGroup(group);
+                    ms.leaveGroup(new InetSocketAddress(group, port), null);
                     ms.close();
                 } catch (IOException e) {
                     log.warn("exception: ", e);
@@ -236,7 +237,7 @@ public class MulticastDiscoveryTest {
         MulticastSocket ms = null;
         try {
             ms = new MulticastSocket(port);
-            ms.joinGroup(group);
+            ms.joinGroup(new InetSocketAddress(group, port), null);
             byte[] buffer = new byte[8192];
             while (true) {
                 DatagramPacket dp = new DatagramPacket(buffer, buffer.length);
@@ -251,7 +252,7 @@ public class MulticastDiscoveryTest {
         } finally {
             if (ms != null) {
                 try {
-                    ms.leaveGroup(group);
+                    ms.leaveGroup(new InetSocketAddress(group, port), null);
                     ms.close();
                 } catch (IOException e) {
                     log.warn("exception: ", e);
