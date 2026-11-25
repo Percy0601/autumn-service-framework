@@ -55,8 +55,8 @@ import lombok.extern.slf4j.Slf4j;
  * 2、@Reference: inject compile-time generated proxy (fallback to runtime JDK proxy)
  * </pre>
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 @Slf4j
 public class AutumnBeanPostProcessor implements BeanPostProcessor {

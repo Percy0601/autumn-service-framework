@@ -14,8 +14,8 @@ import lombok.extern.slf4j.Slf4j;
  * autumn framework lifecycle, start provider/registry/discovery when spring context ready,
  * stop gracefully when spring context closed.
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 @Slf4j
 public class AutumnLifecycle implements SmartLifecycle {

@@ -16,8 +16,8 @@ import xyz.wewin.autumn.sample.boot.provider.service.SomeServiceConsumer;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/9
+ * @author baoxin.zhao
+ * @date 2024/11/9
  */
 @Slf4j
 @RestController

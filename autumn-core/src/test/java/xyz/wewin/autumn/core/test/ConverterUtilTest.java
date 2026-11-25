@@ -9,8 +9,8 @@ import xyz.wewin.autumn.api.util.ConverterUtil;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/7
+ * @author baoxin.zhao
+ * @date 2024/10/7
  */
 
 @Slf4j

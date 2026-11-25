@@ -11,8 +11,8 @@ import xyz.wewin.autumn.core.pool.AutumnPool;
 import xyz.wewin.autumn.core.pool.impl.ConcurrentBagEntry;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/31
+ * @author baoxin.zhao
+ * @date 2024/10/31
  */
 public class AutumnConsumer {
     private volatile static AutumnConsumer singleton = null;

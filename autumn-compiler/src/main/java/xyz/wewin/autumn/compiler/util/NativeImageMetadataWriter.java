@@ -30,8 +30,8 @@ import org.slf4j.Logger;
  * 并合并，因此这些文件随模块 jar 一起打包即可，宿主工程无需任何 {@code -H:*} 参数。
  * 每个处理器使用独立 artifact 目录，避免同一模块内多个处理器争抢同一个文件。</p>
  *
- * @author: baoxin.zhao
- * @date: 2026/11/6
+ * @author baoxin.zhao
+ * @date 2026/11/6
  */
 public final class NativeImageMetadataWriter {
 

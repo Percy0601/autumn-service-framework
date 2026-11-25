@@ -5,8 +5,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/1
+ * @author baoxin.zhao
+ * @date 2024/10/1
  */
 public class ConverterUtil {
     public final static String CONSTANT_PROTOCOL= "_protocol_";

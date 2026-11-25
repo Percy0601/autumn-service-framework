@@ -30,8 +30,8 @@ import xyz.wewin.autumn.core.devops.ControlApiImpl;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/30
+ * @author baoxin.zhao
+ * @date 2024/10/30
  */
 @Slf4j
 public class AutumnProvider {

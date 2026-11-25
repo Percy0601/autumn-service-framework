@@ -1,8 +1,8 @@
 package xyz.wewin.autumn.api.extension;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/6
+ * @author baoxin.zhao
+ * @date 2024/11/6
  */
 
 public interface AutumnFilter {

@@ -5,8 +5,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/7
+ * @author baoxin.zhao
+ * @date 2024/10/7
  */
 public class LRUCache<K, V> extends LinkedHashMap<K, V> {
 

@@ -15,8 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * extra provider service for multi-interface demo, exported via @Export
  *
- * @author: baoxin.zhao
- * @date: 2026/11/4
+ * @author baoxin.zhao
+ * @date 2026/11/4
  */
 @Slf4j
 @Export

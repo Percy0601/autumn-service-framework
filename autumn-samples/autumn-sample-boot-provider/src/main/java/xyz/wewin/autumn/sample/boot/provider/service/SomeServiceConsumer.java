@@ -18,8 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * consumer role inside provider app, direct connect to local thrift server for self-contained e2e demo.
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 @Slf4j
 @Service

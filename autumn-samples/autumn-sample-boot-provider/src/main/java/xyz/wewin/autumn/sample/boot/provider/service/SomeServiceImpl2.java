@@ -12,8 +12,8 @@ import xyz.wewin.autumn.sample.api.User;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/10
+ * @author baoxin.zhao
+ * @date 2024/11/10
  */
 @Slf4j
 @Export

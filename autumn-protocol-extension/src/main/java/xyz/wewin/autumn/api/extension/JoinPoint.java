@@ -3,8 +3,8 @@ package xyz.wewin.autumn.api.extension;
 import lombok.Data;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/6
+ * @author baoxin.zhao
+ * @date 2024/11/6
  */
 @Data
 public class JoinPoint {

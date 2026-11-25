@@ -21,8 +21,8 @@ import xyz.wewin.autumn.boot.aot.AutumnRuntimeHints;
  * 3、register AutumnLifecycle to start/stop autumn framework with spring context
  * </pre>
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 @AutoConfiguration
 @ImportRuntimeHints(AutumnRuntimeHints.class)

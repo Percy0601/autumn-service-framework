@@ -5,8 +5,8 @@ import java.util.List;
 import lombok.Data;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/16
+ * @author baoxin.zhao
+ * @date 2024/11/16
  */
 @Data
 public class TargetMethod {

@@ -264,6 +264,17 @@
                 </executions>
                 <configuration>
                     <doclint>none</doclint>
+                    <!-- @date 不是 javadoc 标准块标签；不注册会报
+                         "unknown tag. Unregistered custom tag?" 并让作者/日期在 API 文档中丢失。
+                         placement=A 表示可用于所有声明（X 是"禁用该标签"，会静默丢掉内容），
+                         注册后渲染为 "Date: <值>"。 -->
+                    <tags>
+                        <tag>
+                            <name>date</name>
+                            <placement>A</placement>
+                            <head>Date</head>
+                        </tag>
+                    </tags>
                 </configuration>
             </plugin>
             <plugin>

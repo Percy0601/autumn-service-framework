@@ -9,8 +9,8 @@ import xyz.wewin.autumn.sample.api.User;
 import xyz.wewin.autumn.sample.nativehints.TomcatNativeHints;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/9
+ * @author baoxin.zhao
+ * @date 2024/11/9
  *
  * <p>native-image 元数据分三处来源，构建期全部就绪，运行期无需 agent、仓库里无需手写 json：</p>
  * <ul>

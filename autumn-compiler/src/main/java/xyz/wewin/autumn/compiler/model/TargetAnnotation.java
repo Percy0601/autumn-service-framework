@@ -7,8 +7,8 @@ import javax.lang.model.element.AnnotationMirror;
 import lombok.Data;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/11/13
+ * @author baoxin.zhao
+ * @date 2024/11/13
  */
 @Data
 public class TargetAnnotation {

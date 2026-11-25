@@ -11,8 +11,8 @@ import xyz.wewin.autumn.api.config.ServiceConfig;
  *     so that provider can be exported with zero reflection (native image friendly).
  * </pre>
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 public interface AutumnServiceAssembler {
 

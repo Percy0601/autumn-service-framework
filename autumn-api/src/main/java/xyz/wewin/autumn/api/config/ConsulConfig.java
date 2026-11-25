@@ -3,9 +3,9 @@ package xyz.wewin.autumn.api.config;
 import lombok.Data;
 
 /**
- * @author: baoxin.zhao
+ * @author baoxin.zhao
  *
- * @date: 2024/5/9
+ * @date 2024/5/9
  */
 @Data
 public class ConsulConfig {

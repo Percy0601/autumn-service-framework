@@ -26,8 +26,8 @@ import xyz.wewin.autumn.compiler.model.TargetVariable;
 /**
  * resolve annotation element into metadata model, used by annotation processors.
  *
- * @author: baoxin.zhao
- * @date: 2024/11/16
+ * @author baoxin.zhao
+ * @date 2024/11/16
  */
 
 public class ClassResolverUtil {

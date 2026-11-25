@@ -10,8 +10,8 @@ import lombok.Setter;
 import lombok.ToString;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/5/9
+ * @author baoxin.zhao
+ * @date 2024/5/9
  */
 @Getter
 @Setter

@@ -25,8 +25,8 @@ import lombok.Data;
  * autumn.provider.ip=127.0.0.1
  * </pre>
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 @Data
 @ConfigurationProperties(prefix = "autumn")

@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * compile sample sources with @Export / @Reference, assert generated
  * _XxxServiceRegister / _XxxProxy classes and SPI services file exist and work.
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 
 @Slf4j

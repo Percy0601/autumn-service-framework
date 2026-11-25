@@ -20,8 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * provider service, exported by autumn starter automatically via @Export
  *
- * @author: baoxin.zhao
- * @date: 2024/11/10
+ * @author baoxin.zhao
+ * @date 2024/11/10
  */
 @Slf4j
 @Export

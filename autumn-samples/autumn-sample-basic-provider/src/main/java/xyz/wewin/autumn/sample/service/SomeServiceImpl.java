@@ -9,8 +9,8 @@ import xyz.wewin.autumn.sample.api.User;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/8
+ * @author baoxin.zhao
+ * @date 2024/10/8
  */
 @Slf4j
 public class SomeServiceImpl implements SomeService.Iface {

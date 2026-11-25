@@ -5,8 +5,8 @@ import org.apache.thrift.TProcessor;
 import lombok.Data;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/10/8
+ * @author baoxin.zhao
+ * @date 2024/10/8
  */
 @Data
 public class ServiceConfig<T> {

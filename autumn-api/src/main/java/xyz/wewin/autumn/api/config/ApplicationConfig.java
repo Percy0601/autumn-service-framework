@@ -17,8 +17,8 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author: baoxin.zhao
- * @date: 2024/5/8
+ * @author baoxin.zhao
+ * @date 2024/5/8
  */
 @Slf4j
 @Getter

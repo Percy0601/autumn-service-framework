@@ -12,8 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * consumer role, @Reference(refer = "provider-consul") discover provider via multicast registry
  *
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  */
 @Slf4j
 @Service

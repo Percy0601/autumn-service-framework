@@ -7,8 +7,8 @@ import org.springframework.context.annotation.ImportRuntimeHints;
 import xyz.wewin.autumn.sample.nativehints.TomcatNativeHints;
 
 /**
- * @author: baoxin.zhao
- * @date: 2026/11/3
+ * @author baoxin.zhao
+ * @date 2026/11/3
  *
  * <p>native-image 元数据全部在构建期产生：{@code @Reference} 的生成代理 / 动态代理组由
  * autumn-compiler 的 JSR-269 处理器写出，嵌入式 Tomcat 的反射与资源由
